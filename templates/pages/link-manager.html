@@ -1,0 +1,287 @@
+{% extends 'layouts/base.html' %}
+{% load static file_extension info_value %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0-beta3/css/all.min.css">
+<!-- Include jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<!-- Include Bootstrap bundle (includes Popper.js) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.7.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block extrastyle %}
+    <!-- ... Votre CSS ... -->
+{% endblock extrastyle %}
+
+{% block content %}
+
+<h4 class="text-center">Link Manager</h4>
+
+    <div class="row m-2">
+       <div class="col-6 justify-content-center">
+              <div class="p-1 text-center d-flex align-items-center">
+                     <input type="text" class="form-control m-2" placeholder="Coller le lien ici" id="dataFrameLink">
+                     <button class="btn btn-primary mt-3" style="width: 300px;" onclick="loadDataFrameFromLink()">Show DataFrame</button>
+              </div>                
+              <div class="p-1 border" id="dataframe" style="display: none;">
+                      <button type="button" class="btn btn-primary m-2" onclick="pandas()">Pandas Traitement</button>
+
+                     <div class="table-container" style="overflow-y: auto;" id="file_content">
+                         {{ file_content | safe }}
+                     </div>
+                     
+              </div>
+                 
+          </div>
+
+       <div class="col-6">
+            <div class="p-3 border">
+                <h4 class="text-center">DATA MANIPULATION</h4>
+                <div class="d-flex align-items-center">
+                    <select class="form-select" id="plotType"  style="background-color: #f2f2f2" aria-label="Select an option">
+                        <option selected disabled>Select a plot type</option>
+                        <option value="line">Line Plot</option>
+                        <option value="scatter">Scatter Plot</option>
+                        <option value="box1">Box Plot one column</option>
+                        <option value="box2">Box Plot two columns</option>
+                        <option value="histogram">Histogram Plot</option>
+                        <option value="kde">KDE Plot</option>
+                        <option value="violin1">Violin Plot one column</option>
+                        <option value="violin2">Violin Plot two columns</option>
+                        <option value="bar">Bar Plot</option>
+                        <option value="heatmap">Heatmap</option>
+                        <option value="pie">Pie Chart</option>
+                    </select>
+                    <button type="button" class="btn btn-primary m-2" onclick="validateChoice()">Valid</button>
+                </div>
+
+                    <div id="columnInputs" style="display: none;">
+                        <label for="xColumn">Select column X :</label>
+                        <select class="form-control m-1" id="xColumn" name="xColumn">
+                            {% for column in columns %}
+                                <option value="{{ column }}">{{ column }}</option>
+                            {% endfor %}
+                        </select>
+                    
+                        <label for="yColumn">Select column Y :</label>
+                        <select class="form-control m-1" id="yColumn" name="yColumn">
+                            {% for column in columns %}
+                                <option value="{{ column }}">{{ column }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <button type="button" class="btn btn-primary m-1" onclick="Execute()">Execute</button>
+                    </div>
+
+                    <div id="columnInput" style="display: none;">
+                        <label for="Column">Select column :</label>
+                        <select class="form-control m-1" id="Column" name="Column">
+                            {% for column in columns %}
+                                <option value="{{ column }}">{{ column }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-primary m-1" onclick="Execute()">Execute</button>
+                    </div>
+
+                    <div id="plotImage" style="display: none;">
+                        <img id="generatedPlot" src="" alt="Generated Plot" style="width: 600px; height: 600px;">
+                    </div>
+                </div>
+                
+        </div>
+            
+    </div>
+<script>
+
+    window.onload = function() {
+       
+    validateChoice();
+};
+
+   function validateChoice() {
+
+       updateColumnSelectOptions();
+
+var plotType = document.getElementById("plotType").value;
+var columnInputs = document.getElementById("columnInputs");
+var columnInput = document.getElementById("columnInput");
+
+columnInputs.style.display = "none";
+columnInput.style.display = "none";
+
+// Réafficher les champs d'entrée en fonction du type de graphique choisi
+if (plotType === "line" || plotType === "scatter" || plotType === "box2" || plotType === "violin2" || plotType === "bar") {
+    columnInputs.style.display = "block";
+} else if (plotType === "kde" || plotType === "histogram" || plotType === "box1" || plotType === "pie" || plotType === "violin1") {
+    columnInput.style.display = "block";
+} else if (plotType === "heatmap" ) {
+    Execute();
+}
+}
+
+
+function updateColumnSelectOptions() {
+        // Récupérer le lien du DataFrame
+        var linkInput = document.getElementById("dataFrameLink");
+        var link = linkInput.value;
+
+        // Effectuer une requête AJAX pour récupérer les colonnes du DataFrame
+        fetch(`/get_columns/?data_frame_link=${link}`)
+            .then(response => response.json())
+            .then(data => {
+                // Mettre à jour les options des sélecteurs avec les colonnes récupérées
+                fillSelectOptions(data.columns);
+            })
+            .catch(error => {
+                console.error('Error during AJAX request: ', error);
+            });
+    }
+
+    // Fonction pour remplir les options des sélecteurs avec les colonnes
+    function fillSelectOptions(columns) {
+        // Remplissez le sélecteur xColumn
+        var xColumnSelect = document.getElementById("xColumn");
+        xColumnSelect.innerHTML = "";
+        columns.forEach(function(column) {
+            var option = document.createElement("option");
+            option.value = column;
+            option.text = column;
+            xColumnSelect.add(option);
+        });
+
+        // Remplissez le sélecteur yColumn
+        var yColumnSelect = document.getElementById("yColumn");
+        yColumnSelect.innerHTML = "";
+        columns.forEach(function(column) {
+            var option = document.createElement("option");
+            option.value = column;
+            option.text = column;
+            yColumnSelect.add(option);
+        });
+
+        // Remplissez le sélecteur Column
+        var columnSelect = document.getElementById("Column");
+        columnSelect.innerHTML = "";
+        columns.forEach(function(column) {
+            var option = document.createElement("option");
+            option.value = column;
+            option.text = column;
+            columnSelect.add(option);
+        });
+    }
+
+
+
+</script>
+<!-- Update the script section in your HTML template -->
+<script>
+function Execute() {
+    var xColumn = document.getElementById("xColumn").value;
+    var yColumn = document.getElementById("yColumn").value;
+    var Column = document.getElementById("Column").value;
+    var plotType = document.getElementById("plotType").value;
+    var linkInput = document.getElementById("dataFrameLink");
+    var link = linkInput.value;
+    // Fetch the CSRF token from the cookie
+    var csrfToken = getCookie('csrftoken');
+    var url;
+    if (plotType === "line" || plotType === "scatter" || plotType === "box2" || plotType === "violin2" || plotType === "bar") {
+        // Check that all necessary values are defined
+        url = `/process_treatment/?x_column=${xColumn}&y_column=${yColumn}&plot_type=${plotType}&link_path=${link}`;
+
+
+    } else if (plotType === "kde" || plotType === "histogram" || plotType === "pie" || plotType === "box1" || plotType === "violin1" ) {
+        url = `/process_treatment/?column=${Column}&plot_type=${plotType}&link_path=${link}`;
+
+    }
+
+    else if (plotType === "heatmap" ) {
+        if (!Column || !plotType || !link) {
+            alert('Please select a column and a plot type.');
+            return;
+        }
+        url = `/process_treatment/?plot_type=${plotType}&link_path=${link}`;
+    }
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            // Check if the response contains plot data
+            if (data.plot_data && data.plot_data.image_base64) {
+                // Set the source of the image element to the received base64 image data
+                var generatedPlot = document.getElementById("generatedPlot");
+                generatedPlot.src = "data:image/png;base64," + data.plot_data.image_base64;
+                // Display the plot image container
+                var plotImage = document.getElementById("plotImage");
+                plotImage.style.display = "block";
+            } else {
+                alert('Error: Failed to retrieve plot data.');
+            }
+        })
+        .catch(error => {
+            console.error('Error during AJAX request: ', error);
+        });
+}
+
+// Function to get the CSRF token from the cookie
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+</script>
+
+<script>
+       function loadDataFrameFromLink() {
+           var linkInput = document.getElementById("dataFrameLink");
+           var dataframe = document.getElementById("dataframe");
+
+           dataframe.style.display = "none";
+
+           var link = linkInput.value;
+       
+           if (!link) {
+               alert('Please enter a valid link.');
+               return;
+           }
+       
+           // Effectuez une requête AJAX pour récupérer les données du DataFrame à partir de l'URL
+           fetch(`/traitement_link/?dataFrameLink=${link}`)
+               .then(response => response.json())
+               .then(data => {
+                   // Mettez à jour les éléments de votre page avec les nouvelles données
+                   document.getElementById("file_content").innerHTML = data.file_content;  
+                   dataframe.style.display = "block";     
+                   // Mettez à jour les options des sélecteurs avec les colonnes
+                   var columns = data.columns;
+               })
+               .catch(error => {
+                   console.error('Error during AJAX request: ', error);
+               });
+       }
+        
+       function pandas(){
+            var linkInput = document.getElementById("dataFrameLink");
+                const traitementButtons = document.querySelectorAll('.pandas-button');
+
+                var link = linkInput.value;
+            
+                if (!link) {
+                    alert('Please enter a valid link.');
+                    return;
+                }
+                        // Construct the URL for views.pandas with the link_path parameter
+            var pandasUrl = '{% url "pandas" %}?link_path=' + link;
+
+        // Redirect to the pandasUrl
+        window.location.href = pandasUrl;
+       }
+</script>
+       
+{% endblock content %}

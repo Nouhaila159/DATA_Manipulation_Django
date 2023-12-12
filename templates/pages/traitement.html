@@ -1,0 +1,196 @@
+    {% extends 'layouts/base.html' %}
+    {% load static file_extension info_value %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0-beta3/css/all.min.css">
+    {% block extrastyle %}
+        <!-- ... Votre CSS ... -->
+    {% endblock extrastyle %}
+
+    {% block content %}
+        <div class="row m-2">
+            <div class="col-6">
+                <div class="p-3 border">
+                    <h4 class="text-center">DATA MANIPULATION</h4>
+                    <div class="d-flex align-items-center">
+                        <select class="form-select" id="plotType"  style="background-color: #f2f2f2" aria-label="Select an option">
+                            <option selected disabled>Select a plot type</option>
+                            <option value="line">Line Plot</option>
+                            <option value="scatter">Scatter Plot</option>
+                            <option value="box1">Box Plot one column</option>
+                            <option value="box2">Box Plot two columns</option>
+                            <option value="histogram">Histogram Plot</option>
+                            <option value="kde">KDE Plot</option>
+                            <option value="violin1">Violin Plot one column</option>
+                            <option value="violin2">Violin Plot two columns</option>
+                            <option value="bar">Bar Plot</option>
+                            <option value="heatmap">Heatmap</option>
+                            <option value="pie">Pie Chart</option>
+                        </select>
+                        <button type="button" class="btn btn-primary m-2" onclick="validateChoice()">Valid</button>
+                    </div>
+
+                        <div id="columnInputs" style="display: none;">
+                            <label for="xColumn">Select column X :</label>
+                            <select class="form-control m-1" id="xColumn" name="xColumn">
+                                {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                {% endfor %}
+                            </select>
+                        
+                            <label for="yColumn">Select column Y :</label>
+                            <select class="form-control m-1" id="yColumn" name="yColumn">
+                                {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                {% endfor %}
+                            </select>
+
+                            <button type="button" class="btn btn-primary m-1" onclick="Execute()">Execute</button>
+                        </div>
+
+                        <div id="columnInput" style="display: none;">
+                            <label for="Column">Select column :</label>
+                            <select class="form-control m-1" id="Column" name="Column">
+                                {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-primary m-1" onclick="Execute()">Execute</button>
+                        </div>
+
+                        <div id="plotImage" style="display: none;">
+                            <img id="generatedPlot" src="" alt="Generated Plot" style="width: 600px; height: 600px;">
+                        </div>
+                    </div>
+                    
+            </div>
+                <div class="col-6 justify-content-center">
+                    <div class="p-1 border">
+                        <h4 class="text-center">DATAFRAME</h4>
+                        <div class="table-container" style="overflow-y: auto;">
+                            {{ file_content | safe }}
+                        </div>
+                    </div>
+                </div>
+        </div>
+    <script>
+
+        window.onload = function() {
+        validateChoice();
+    };
+
+       function validateChoice() {
+        
+    var plotType = document.getElementById("plotType").value;
+    var columnInputs = document.getElementById("columnInputs");
+    var columnInput = document.getElementById("columnInput");
+
+    columnInputs.style.display = "none";
+    columnInput.style.display = "none";
+
+    // Réafficher les champs d'entrée en fonction du type de graphique choisi
+    if (plotType === "line" || plotType === "scatter" || plotType === "box2" || plotType === "violin2" || plotType === "bar") {
+        columnInputs.style.display = "block";
+    } else if (plotType === "kde" || plotType === "histogram" || plotType === "box1" || plotType === "pie" || plotType === "violin1") {
+        columnInput.style.display = "block";
+    } else if (plotType === "heatmap" ) {
+        Execute();
+    }
+}
+   </script>
+    <!-- Update the script section in your HTML template -->
+<script>
+    function Execute() {
+        var xColumn = document.getElementById("xColumn").value;
+        var yColumn = document.getElementById("yColumn").value;
+        var Column = document.getElementById("Column").value;
+        var plotType = document.getElementById("plotType").value;
+        var filePath = '{{ file_path|escapejs }}'.replace(/\\/g, '\\\\'); // Escape backslashes
+        // Fetch the CSRF token from the cookie
+        var csrfToken = getCookie('csrftoken');
+        var url;
+        if (plotType === "line" || plotType === "scatter" || plotType === "box2" || plotType === "violin2" || plotType === "bar") {
+            // Check that all necessary values are defined
+            if (!xColumn || !yColumn || !plotType || !filePath) {
+                alert('Please select an X column, a Y column, and a plot type.');
+                return;
+            }
+            url = `/process_treatment/?x_column=${xColumn}&y_column=${yColumn}&plot_type=${plotType}&file_path=${filePath}`;
+
+
+        } else if (plotType === "kde" || plotType === "histogram" || plotType === "pie" || plotType === "box1" || plotType === "violin1" ) {
+            if (!Column || !plotType || !filePath) {
+                alert('Please select a column and a plot type.');
+                return;
+            }
+            url = `/process_treatment/?column=${Column}&plot_type=${plotType}&file_path=${filePath}`;
+
+        }
+
+        else if (plotType === "heatmap" ) {
+            if (!Column || !plotType || !filePath) {
+                alert('Please select a column and a plot type.');
+                return;
+            }
+            url = `/process_treatment/?plot_type=${plotType}&file_path=${filePath}`;
+        }
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                // Check if the response contains plot data
+                if (data.plot_data && data.plot_data.image_base64) {
+                    // Set the source of the image element to the received base64 image data
+                    var generatedPlot = document.getElementById("generatedPlot");
+                    generatedPlot.src = "data:image/png;base64," + data.plot_data.image_base64;
+                    // Display the plot image container
+                    var plotImage = document.getElementById("plotImage");
+                    plotImage.style.display = "block";
+                } else {
+                    alert('Error: Failed to retrieve plot data.');
+                }
+            })
+            .catch(error => {
+                console.error('Error during AJAX request: ', error);
+            });
+    }
+
+    // Function to get the CSRF token from the cookie
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+</script>
+
+<!-- Ajoutez ceci à la fin de votre bloc script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Sélectionnez tous les liens de colonnes
+        const columnLinks = document.querySelectorAll('.column-link');
+
+        // Ajoutez un gestionnaire d'événements à chaque lien de colonne
+        columnLinks.forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                // Empêchez le comportement de lien par défaut
+                event.preventDefault();
+
+                // Récupérez le nom de la colonne à partir de l'attribut data-column
+                const columnName = link.getAttribute('data-column');
+
+                // Ajoutez ici votre logique pour traiter la colonne cliquée
+                alert('Colonne cliquée : ' + columnName);
+            });
+        });
+    });
+</script>
+
+
+    {% endblock content %}

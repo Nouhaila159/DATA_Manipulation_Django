@@ -1,0 +1,346 @@
+{% extends 'layouts/base.html' %}
+{% load static file_extension info_value %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0-beta3/css/all.min.css">
+{% block extrastyle %}
+    <!-- ... Votre CSS ... -->
+{% endblock extrastyle %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-4">
+            <div class="border ms-2">
+                <h4 class="text-center">Choose Probability Law</h4>
+
+                <div class="ms-2">
+                     <input type="radio" id="pdf" name="probability_law" value="pdf">
+                     <label for="pdf">PDF</label>
+                 </div>
+
+                <div class="ms-2">
+                    <input type="radio" id="bernoulli" name="probability_law" value="bernoulli">
+                    <label for="bernoulli">Bernoulli</label>
+                </div>
+            
+                <div class="ms-2">
+                    <input type="radio" id="binomial" name="probability_law" value="binomial">
+                    <label for="binomial">Binomial</label>
+                </div>
+            
+                <div class="ms-2">
+                    <input type="radio" id="uniform" name="probability_law" value="uniform">
+                    <label for="uniform">Uniform</label>
+                </div>
+            
+                <div class="ms-2">
+                    <input type="radio" id="poisson" name="probability_law" value="poisson">
+                    <label for="poisson">Poisson</label>
+                </div>
+            
+                <div class="ms-2">
+                    <input type="radio" id="normal" name="probability_law" value="normal">
+                    <label for="normal">Normal</label>
+                </div>
+            
+                <div class="ms-2">
+                    <input type="radio" id="exponential" name="probability_law" value="exponential">
+                    <label for="exponential">Exponential</label>
+                </div>
+                <button type="button" class="btn btn-primary " style="margin-left: 250px;" onclick="validateChoice()">Valider</button>
+            </div>
+        </div>
+
+        <div class="col-8">
+            <div class=" border">
+                <div id="parameterFields">
+                     <div id="pdfparams" style="display: none;">
+                            <h4 class="text-center">PDF Generator</h4>
+                            <div class="input-container">
+                            <label for="muInput" class="m-2">Mean (μ): </label>
+                            <input type="number" id="muInput" step="any" class="m-2" placeholder="Enter mean">
+                            <br><label for="sigmaInput" class="m-2">Standard Deviation (σ): </label>
+                            <input type="number" id="sigmaInput" step="any" class="m-2" placeholder="Enter standard deviation">
+                            <br><label for="lowerBoundInput" class="m-2">Lower Bound (a): </label>
+                            <input type="number" id="lowerBoundInput" step="any" class="m-2" placeholder="Enter lower bound">
+                            <br><label for="upperBoundInput" class="m-2">Upper Bound (b): </label>
+                            <input type="number" id="upperBoundInput" step="any" class="m-2" placeholder="Enter upper bound">
+                            <br><button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                            </div>
+                     </div>
+                     <div id="bernoulliparams" style="display: none;">
+                            <h4 class="text-center">Bernoulli Generator</h4>
+                            <div class="input-container">
+                                <label for="probabilityInput" class="m-2">Probability (p): </label>
+                                <input type="number" id="probabilityInput" step="any" class="m-2" placeholder="Enter probability">
+                                <br>
+                                <button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                            </div>
+                     </div>
+                     <div id="binomialparams" style="display: none;">
+                            <h4 class="text-center">Binomial Generator</h4>
+                            <div class="input-container">
+                                <label for="nInput" class="m-2" >Number of Trials (n): </label>
+                                <input type="number" id="nInput" step="any" class="m-2" placeholder="Enter the number of trials">
+                                <br>
+                                <label for="pInput" class="m-2" >Probability of Success (p): </label>
+                                <input type="number" id="pInput" step="any" class="m-2" placeholder="Enter the probability of success (between 0 and 1)">
+                                <br>
+                                <button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                            </div>
+                        </div>
+                     <div id="uniformparams" style="display: none;">
+                            <h4 class="text-center">Uniform Generator</h4>
+                            <div class="input-container">
+                                <label for="locInput" class="m-2">Loc (a): </label>
+                                <input type="number" id="locInput" step="any" class="m-2" placeholder="Enter loc">
+                                <br><label for="scaleInput" class="m-2">Scale (b-a): </label>
+                                <input type="number" id="scaleInput" step="any" class="m-2" placeholder="Enter scale">
+                                <br><button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                            </div>
+                        </div>
+                     <div id="poissonparams" style="display: none;">
+                            <h4 class="text-center">Poisson Generator</h4>
+                            <div class="input-container">
+                                <label for="mu" class="m-2">Mean (μ): </label>
+                                <input type="number" id="mu" step="any" class="m-2" placeholder="Enter mean">
+                                <br>
+                                <button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                            </div>
+                        </div>
+                     <div id="normalparams" style="display: none;">
+                            <h4 class="text-center">Normal Generator</h4>
+                            <div class="input-container">
+                                   <label for="meanInput" class="m-2">Mean (μ): </label>
+                                   <input type="number" id="meanInput" step="any" class="m-2" placeholder="Enter mean">
+                                   <br>
+                                   <label for="stdDevInput" class="m-2">Standard Deviation (σ): </label>
+                                   <input type="number" id="stdDevInput" step="any" class="m-2" placeholder="Enter standard deviation">
+                                   <br>
+                                   <button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                            </div>
+                        </div>
+                     <div id="exponentialparams" style="display: none;">
+                     <h4 class="text-center">Exponential Generator</h4>
+                     <div class="input-container">
+                            <label for="lambdaInput" class="m-2">Rate (λ): </label>
+                            <input type="number" id="lambdaInput" step="any" class="m-2" placeholder="Enter rate">
+                            <br>
+                            <button type="button" class="btn btn-primary m-2" onclick="Execute()">Execute</button>
+                     </div>
+                     </div>
+                </div>
+
+                
+                <div id="plotImage" style="display: none;">
+                     <img id="generatedPlot" src="" alt="Generated Plot" style="width: 600px; height: 600px;">
+                 </div>
+        
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+function validateChoice() {
+    var selectedLaw = document.querySelector('input[name="probability_law"]:checked');
+    var plotImage = document.getElementById("plotImage");
+    plotImage.style.display = "none";
+
+    if (selectedLaw) {
+        // Hide all parameter fields
+        hideAllParameterFields();
+
+        // Show the parameter fields based on the selected law
+        switch (selectedLaw.value) {
+            case 'pdf':
+                showPdfParams();
+                break;
+            case 'bernoulli':
+                showBernoulliParams();
+                break;
+            case 'binomial':
+                showBinomialParams();
+                break; 
+            case 'uniform':
+                showUniformParams();
+                break;   
+            case 'poisson':
+                showPoissonParams();
+                break;
+            case 'normal':
+                showNormalParams();
+                break; 
+            case 'exponential':
+                showExponentialParams();
+                break;
+        }
+    } else {
+        alert('Veuillez sélectionner une loi de probabilité.');
+    }
+}
+function hideAllParameterFields() {
+    document.getElementById('pdfparams').style.display = 'none';
+    document.getElementById('bernoulliparams').style.display = 'none';    
+    document.getElementById('binomialparams').style.display = 'none';
+    document.getElementById('uniformparams').style.display = 'none';
+    document.getElementById('poissonparams').style.display = 'none';
+    document.getElementById('normalparams').style.display = 'none';
+    document.getElementById('exponentialparams').style.display = 'none';
+}
+function showPdfParams() {
+    hideAllParameterFields();
+    document.getElementById('pdfparams').style.display = 'block';
+}
+function showBernoulliParams() {
+    hideAllParameterFields();
+    document.getElementById('bernoulliparams').style.display = 'block';
+}
+function showBinomialParams(){
+    hideAllParameterFields();
+    document.getElementById('binomialparams').style.display = 'block';
+}
+function showUniformParams() {
+    hideAllParameterFields();
+    document.getElementById('uniformparams').style.display = 'block';
+}
+function showPoissonParams() {
+    hideAllParameterFields();
+    document.getElementById('poissonparams').style.display = 'block';
+}
+function showNormalParams(){
+    hideAllParameterFields();
+    document.getElementById('normalparams').style.display = 'block';
+}
+function showExponentialParams() {
+    hideAllParameterFields();
+    document.getElementById('exponentialparams').style.display = 'block';
+}
+function sendData(url){
+       fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                // Check if the response contains plot data
+                if (data.plot_data && data.plot_data.image_base64) {
+                    // Set the source of the image element to the received base64 image data
+                    var generatedPlot = document.getElementById("generatedPlot");
+                    generatedPlot.src = "data:image/png;base64," + data.plot_data.image_base64;
+                    // Display the plot image container
+                    var plotImage = document.getElementById("plotImage");
+                    plotImage.style.display = "block";
+                } else {
+                    alert('Error: Failed to retrieve plot data.');
+                }
+            })
+            .catch(error => {
+                console.error('Error during AJAX request: ', error);
+            });
+}
+function Execute() {
+    var selectedLaw = document.querySelector('input[name="probability_law"]:checked');
+
+    if (selectedLaw) {
+        switch (selectedLaw.value) {
+            case 'pdf':
+                executePdf();
+                break;
+            case 'bernoulli':
+                executeBernoulli();
+                break;
+            case 'binomial':
+                executeBinomial();
+                break; 
+            case 'uniform':
+                executeUniform();
+                break;   
+            case 'poisson':
+                executePoisson();
+                break;
+            case 'normal':
+                executeNormal();
+                break; 
+            case 'exponential':
+                executeExponential();
+                break;
+        }
+    } else {
+        alert('Veuillez sélectionner une loi de probabilité.');
+    }
+}
+function executePdf() {
+    var mu = document.getElementById('muInput').value;
+    var sigma = document.getElementById('sigmaInput').value;
+    var lowerBound = document.getElementById('lowerBoundInput').value;
+    var upperBound = document.getElementById('upperBoundInput').value;
+    if (!mu || !sigma || !lowerBound || !upperBound) {
+        alert('Veuillez remplir tous les champs.');
+        return;
+    }
+    var url = `/generate_pdf_plot?mu=${mu}&sigma=${sigma}&lowerBound=${lowerBound}&upperBound=${upperBound}`;
+    sendData(url);
+}
+function executeBernoulli() {
+    var probability = document.getElementById('probabilityInput').value;
+    if (!probability) {
+        alert('Veuillez entrer la probabilité.');
+        return;
+    }
+    var url = `/generate_bernoulli_plot?probability=${probability}`;
+    sendData(url);
+}
+function executeBinomial() {
+    var n = document.getElementById('nInput').value;
+    var p = document.getElementById('pInput').value;
+    if (!n || !p) {
+        alert('Veuillez remplir tous les champs.');
+        return;
+    }
+    var url = `/generate_binomial_plot?n=${n}&p=${p}`;
+    sendData(url);
+}
+function executeUniform() {
+    var loc = document.getElementById('locInput').value;
+    var scale = document.getElementById('scaleInput').value;
+
+    if (!loc || !scale) {
+        alert('Veuillez remplir tous les champs.');
+        return;
+    }
+
+    var url = `/generate_uniform_plot?loc=${loc}&scale=${scale}`;
+    sendData(url);
+}
+function executePoisson() {
+    var mu = document.getElementById('mu').value;
+    if (!mu) {
+        alert('Veuillez entrer la valeur de mu.');
+        return;
+    }
+    var url = `/generate_poisson_plot?mu=${mu}`;
+    sendData(url);
+}
+function executeNormal() {
+    var mean = document.getElementById('meanInput').value;
+    var stdDev = document.getElementById('stdDevInput').value;
+
+    if (!mean || !stdDev) {
+        alert('Veuillez remplir tous les champs.');
+        return;
+    }
+
+    var url = `/generate_normal_plot?mean=${mean}&std_dev=${stdDev}`;
+    sendData(url);
+}
+function executeExponential() {
+    var rate = document.getElementById('lambdaInput').value;
+
+    if (!rate) {
+        alert('Veuillez entrer le taux.');
+        return;
+    }
+
+    var url = `/generate_exponential_plot?rate=${rate}`;
+    sendData(url);
+}
+</script>
+
+{% endblock content %}

@@ -1,0 +1,253 @@
+{% extends 'layouts/base.html' %}
+{% load static file_extension info_value %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0-beta3/css/all.min.css">
+{% block extrastyle %}
+    <!-- ... Votre CSS ... -->
+{% endblock extrastyle %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-6">
+            <div class=" border">
+                <h4 class="text-center"> Traitement with Pandas</h4>
+                <div class="d-flex flex-column ms-5">
+                    <label for="xColumn">Add Row:</label>
+                    <div class="d-flex">
+                        <select class="form-select " id="selectRows" style="background-color: #f2f2f2; max-width: 400px; max-height: 50px;" aria-label="Select Rows" multiple>
+                            {% for row in rows %}
+                                <option value="{{ row }}">{{ row }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-primary m-2" onclick="executePandasOperation('rows')">Add </button>
+                    
+                    </div>
+                    <label for="xColumn">Add Column:</label>
+
+                        <div class="d-flex">
+                            <select class="form-control" id="selectColumns" style="background-color: #f2f2f2; max-width: 400px; max-height: 50px;" aria-label="Select Columns" multiple>
+                                {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-primary m-2" onclick="executePandasOperation('columns')">Add </button>
+                        </div>
+                   
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-6">
+                        <div class="p-3 border">
+                            <h4 class="text-center">Selected Rows</h4>
+                            <div id="selectedRows"></div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 border">
+                            <h4 class="text-center">Selected Columns</h4>
+                            <div id="selectedColumns"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="container">
+                
+                    <!-- Ajouter le bouton "Show Data" -->
+                    <button type="button" class="btn btn-primary mt-3" onclick="processSelections()">Process Selections</button>
+                    <!--dive pour afficher selected data" -->
+                    <div id="table-selected" style="overflow: auto; max-height: 500px;">
+
+                    </div>
+
+                    <!-- Ajouter la liste déroulante pour les traitements -->
+                    <label for="operations">Select Operation:</label>
+                    <select class="form-select" id="operations">
+                        <option value="filtered_data">Filter Data</option>
+                        <option value="grouped_data">Group and Aggregate Data</option>
+                        <option value="df_filled">Replace Missing Values</option>
+                        <option value="df_no_na">Drop Missing Values</option>
+                        <option value="sorted_df">Sort DataFrame</option>
+                        <option value="new_column">Add New Calculated Column</option>
+                        <option value="df_no_column">Drop Column</option>
+                        <option value="rename_columns">Rename Columns</option>
+                        <option value="apply_function">Apply Function to Column</option>
+                    </select>
+                
+                    <!-- Ajouter le bouton pour exécuter le traitement -->
+                    <button type="button" class="btn btn-primary mt-2" onclick="showSelectedData()">Execute Operation</button>
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="col-6 justify-content-center">
+            <div class="p-1 border">
+                <h4 class="text-center">DATAFRAME</h4>
+                <div class="table-container" style="overflow-y: auto;">
+                    {{ file_content | safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .selected-item {
+        border: 1px solid #ff0000; /* Bordure rouge */
+        padding: 1px; /* Espace intérieur pour la croix */
+        margin-bottom: 5px; /* Espacement entre les éléments */
+        background-color: #f5c2c2;
+        max-width: 100px;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .delete-button {
+        color: #ff0000; /* Couleur rouge pour la croix */
+        cursor: pointer;
+        border: none;
+        background: none;
+        font-size: 20px; /* Ajustez la taille de la croix selon vos préférences */
+    }
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+    var selectedRowsList = [];
+    var selectedColumnsList = [];
+    var file_path = "{{ file_path|escapejs }}".replace(/\\/g, '\\\\');
+    var link_path = "{{ link_path|escapejs }}".replace(/\\/g, '\\\\');
+
+    function executePandasOperation(type) {
+        var selectedOptions = [];
+        var selectedList;
+        var csrfToken = getCookie('csrftoken');
+
+        if (type === 'rows') {
+            var selectElement = document.getElementById('selectRows');
+            selectedList = selectedRowsList;
+        } else if (type === 'columns') {
+            var selectElement = document.getElementById('selectColumns');
+            selectedList = selectedColumnsList;
+        }
+
+        for (var i = 0; i < selectElement.options.length; i++) {
+            if (selectElement.options[i].selected) {
+                var value = selectElement.options[i].value;
+                selectedOptions.push(value);
+
+                // Ajouter à la liste correspondante
+                if (!selectedList.includes(value)) {
+                    selectedList.push(value);
+                }
+            }
+        }
+
+        // Mettre à jour la liste complète dans la div correspondante
+        if (type === 'rows') {
+            updateSelectedList('selectedRows', selectedRowsList);
+        } else if (type === 'columns') {
+            updateSelectedList('selectedColumns', selectedColumnsList);
+        }
+    }
+
+    function updateSelectedList(listId, selectedList) {
+    var listContainer = document.getElementById(listId);
+    listContainer.innerHTML = '';
+
+    for (var i = 0; i < selectedList.length; i++) {
+        var listItem = document.createElement('div');
+        listItem.className = 'selected-item'; // Ajout de la classe pour la bordure
+
+        var valueSpan = document.createElement('span');
+        valueSpan.innerHTML = selectedList[i];
+
+        var deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-button'; // Ajout de la classe pour la croix
+        deleteButton.innerHTML = 'x';
+
+        // Utiliser une fonction anonyme pour capturer la bonne valeur
+        (function (valueToRemove) {
+            deleteButton.onclick = function () {
+                removeItemFromList(selectedList, valueToRemove);
+                updateSelectedList(listId, selectedList);
+            };
+        })(selectedList[i]);
+
+        listItem.appendChild(valueSpan);
+        listItem.appendChild(deleteButton);
+
+        listContainer.appendChild(listItem);
+    }
+}
+
+    function removeItemFromList(list, item) {
+        var index = list.indexOf(item);
+        if (index !== -1) {
+            list.splice(index, 1);
+        }
+    }
+
+
+
+    function processSelections() {
+        var selectedRows = selectedRowsList;
+        var selectedColumns = selectedColumnsList;
+
+        var url = `/get_selectedValue/?file_path=${file_path}&link_path=${link_path}`;
+
+
+        // Vérifier si aucune sélection n'a été faite
+    if (selectedRows.length === 0 && selectedColumns.length === 0) {
+        alert('Please select at least one row or column.');
+        return;
+    }
+
+
+    // Vérifier si des lignes sont sélectionnées
+    if (selectedRows.length > 0) {
+        url += `&selected_rows[]=${selectedRows.join('&selected_rows[]=')}`;
+    }
+
+    // Vérifier si des colonnes sont sélectionnées
+    if (selectedColumns.length > 0) {
+        url += `&selected_columns[]=${selectedColumns.join('&selected_columns[]=')}`;
+    }
+
+    // Vérifier si des colonnes sont sélectionnées
+    if (selectedRows.length > 1 && selectedColumns.length > 0) {
+        url += `&selected_rows[]=${selectedRows.join('&selected_rows[]=')}&selected_columns[]=${selectedColumns.join('&selected_columns[]=')}`;
+    }
+        // Effectuez une requête AJAX pour récupérer les données du DataFrame à partir de l'URL
+        fetch(url)
+               .then(response => response.json())
+               .then(data => {
+                   // Mettez à jour les éléments de votre page avec les nouvelles données
+                   document.getElementById("table-selected").innerHTML = data.file_content;       
+                   // Mettez à jour les options des sélecteurs avec les colonnes
+                   var columns = data.columns;
+               })
+               .catch(error => {
+                   console.error('Error during AJAX request: ', error);
+               });
+    }
+
+// Function to get the CSRF token from the cookie
+    function getCookie(name) {
+var cookieValue = null;
+if (document.cookie && document.cookie !== '') {
+       var cookies = document.cookie.split(';');
+       for (var i = 0; i < cookies.length; i++) {
+       var cookie = cookies[i].trim();
+       if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+       }
+       }
+}
+return cookieValue;
+}
+
+
+</script>
+
+{% endblock content %}
