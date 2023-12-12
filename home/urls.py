@@ -13,17 +13,19 @@ urlpatterns = [
     path('traitement/', views.traitement, name='traitement'),
     path('process_treatment/', views.process_treatment, name='process_treatment'),
     #path('traitement/<str:image_filename>/', views.traitement_image, name='traitement'),
-
+    
     path('link-manager/', views.link_manager, name='link_manager'),
     path('traitement_link/', views.traitement_link, name='traitement_link'),
     path('get_columns/', views.get_columns, name='get_columns'),
 
+    #Pandas
     path('pandas/', views.pandas, name='pandas'),
     path('get_selectedValue/', views.get_selectedValue, name='get_selectedValue'),
-
-    path('probability/', views.probability, name='probability'),
+    path('process_operation/', views.process_operation, name='process_operation'),
+    path('manipulate_dataframe/', views.manipulate_dataframe, name='manipulate_dataframe'),
 
     #Lois
+    path('probability/', views.probability, name='probability'),
     path('generate_pdf_plot/', views.generate_pdf_plot, name='generate_pdf_plot'),
     path('generate_bernoulli_plot/', views.generate_bernoulli_plot, name='generate_bernoulli_plot'),
     path('generate_binomial_plot/', views.generate_binomial_plot, name='generate_binomial_plot'),

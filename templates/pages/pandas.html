@@ -59,26 +59,47 @@
                     </div>
 
                     <!-- Ajouter la liste déroulante pour les traitements -->
-                    <label for="operations">Select Operation:</label>
-                    <select class="form-select" id="operations">
-                        <option value="filtered_data">Filter Data</option>
-                        <option value="grouped_data">Group and Aggregate Data</option>
-                        <option value="df_filled">Replace Missing Values</option>
-                        <option value="df_no_na">Drop Missing Values</option>
-                        <option value="sorted_df">Sort DataFrame</option>
-                        <option value="new_column">Add New Calculated Column</option>
-                        <option value="df_no_column">Drop Column</option>
-                        <option value="rename_columns">Rename Columns</option>
-                        <option value="apply_function">Apply Function to Column</option>
-                    </select>
-                
+                    <label for="operations">Select an operation to apply on a single row or a single column:</label>
+                        <select class="form-select" id="operations">
+                            <option value="mean">Moyenne</option>
+                            <option value="mode">Mode</option>
+                            <option value="median">Médiane</option>
+                            <option value="variance">Variance</option>
+                            <option value="std_deviation">Écart type</option>
+                            <option value="min_value">Min</option>
+                            <option value="max_value">Max</option>
+                            <option value="range">Étendue</option>
+                            <option value="sum">Somme</option>
+                        </select>               
                     <!-- Ajouter le bouton pour exécuter le traitement -->
-                    <button type="button" class="btn btn-primary mt-2" onclick="showSelectedData()">Execute Operation</button>
-                </div>
+                    <button type="button" class="btn btn-primary mt-2" onclick="applyOperation()">Execute Operation</button>
                 
+                <!-- Ajoutez le conteneur pour afficher le résultat de l'opération -->
+                <div id="operation-result" style="margin-top: 20px;"></div>
+                    <!-- Add an input field for the filter expression -->
+                    <label for="manipulateDF">Manipulate dataframe:</label>
+                    <select class="form-select" id="manipulateDF" onchange="toggleFilterInput()">
+                        <option value="removeNull">Remove Null values</option>
+                        <option value="filter">Filter</option>
+                    </select>
+
+            <!-- Add the button to execute the operation -->
+            <button type="button" class="btn btn-primary mt-2" onclick="manipulateDF()">Manipulate</button>
+
+            <!-- Add an input field for the filter expression -->
+            <div id="filterExpression" style="margin-top: 10px; display: none;">
+                <label for="filterExpressionInput">Filter Expression:</label>
+                <label for="filterExpressionInput">Filter Expression:</label>
+                <input type="text" class="form-control" id="filterExpressionInput" placeholder="Price>40">
+                <p class="text-muted">Enter filter expressions like (Price > 40) or (Product == 'Product_1').</p>
+
             </div>
-        </div>
-        
+
+            <div id="manipulate-result" style="overflow: auto; max-height: 500px;"></div>          
+            </div>
+            </div> 
+            
+        </div>   
         <div class="col-6 justify-content-center">
             <div class="p-1 border">
                 <h4 class="text-center">DATAFRAME</h4>
@@ -247,7 +268,109 @@ if (document.cookie && document.cookie !== '') {
 return cookieValue;
 }
 
+function applyOperation() {
+    var selectedRowsList = [];
+    var selectedColumnsList = [];
+    var file_path = "{{ file_path|escapejs }}".replace(/\\/g, '\\\\');
+    var link_path = "{{ link_path|escapejs }}".replace(/\\/g, '\\\\');
+    var selectedOperation = document.getElementById("operations").value;
 
+    // Utilisez les listes réelles ici
+    var selectedRows = selectedRowsList;
+    var selectedColumns = selectedColumnsList;
+    // Mise à jour des listes avec les sélections réelles des utilisateurs
+    var selectRowsElement = document.getElementById('selectRows');
+    for (var i = 0; i < selectRowsElement.options.length; i++) {
+        if (selectRowsElement.options[i].selected) {
+            selectedRows.push(selectRowsElement.options[i].value);
+        }
+    }
+
+    var selectColumnsElement = document.getElementById('selectColumns');
+    for (var j = 0; j < selectColumnsElement.options.length; j++) {
+        if (selectColumnsElement.options[j].selected) {
+            selectedColumns.push(selectColumnsElement.options[j].value);
+        }
+    }
+ 
+    var url = `/process_operation/?file_path=${file_path}&link_path=${link_path}`;
+    url += `&selected_rows[]=${selectedRows.join('&selected_rows[]=')}&selected_columns[]=${selectedColumns.join('&selected_columns[]=')}&selected_operation=${selectedOperation}`;
+
+    var csrfToken = getCookie('csrftoken');
+
+    fetch(url)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error_message) {
+            console.error(data.error_message);
+        } else {
+            // Afficher uniquement la valeur numérique dans la div
+            const selectedOptionName = document.getElementById("operations").options[document.getElementById("operations").selectedIndex].text;
+            const numericValue = data.result_data;
+            document.getElementById("operation-result").innerHTML = `Selected Option: ${selectedOptionName}<br>Result: ${numericValue}`;
+            //document.getElementById("operation-result").innerHTML = numericValue;
+        }
+    })
+    .catch(error => {
+    alert('Please enter numeric columns and not strings. The data you have chosen is invalid.');
+
+        //console.error('Error during AJAX request: ', error);
+    });
+}
+
+    function toggleFilterInput() {
+        var manipulationType = document.getElementById("manipulateDF").value;
+        var filterExpressionDiv = document.getElementById("filterExpression");
+
+        // Toggle the display of the filter input field based on the selected manipulation type
+        filterExpressionDiv.style.display = (manipulationType === 'filter') ? 'block' : 'none';
+    }
+
+ // Function to toggle the filter input based on the selected manipulation type
+ function manipulateDF() {
+    var manipulationType = document.getElementById("manipulateDF").value;
+
+    // Check if the selected manipulation type is "Filter"
+    if (manipulationType === 'filter') {
+        // Retrieve the filter expression from the input field
+        var filterExpression = document.getElementById("filterExpressionInput").value;
+        // You can further validate or sanitize the filter expression as needed
+    }
+
+    // Continue with the rest of your code for AJAX request and processing
+    var url = `/manipulate_dataframe/`;
+    var csrfToken = getCookie('csrftoken');
+
+    fetch(url, {
+        method: 'POST',  // Set the method to POST
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken,
+        },
+        body: new URLSearchParams({
+            'file_path': file_path,
+            'link_path': link_path,
+            'manipulation_type': manipulationType,
+            'filter_expression': filterExpression,
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+    if (data.error_message) {
+        console.error(data.error_message);
+    } else {
+        // Display the manipulated DataFrame in the specified container
+        document.getElementById("manipulate-result").innerHTML = data.file_content;  // Update to use 'file_content'
+    }
+})
+
+    .catch(error => {
+       // alert('Error during AJAX request: ' + error);
+       alert('Please check the data you are entering ');
+    });
+}
+
+    
 </script>
 
 {% endblock content %}

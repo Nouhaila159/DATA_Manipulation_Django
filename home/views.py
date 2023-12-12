@@ -364,8 +364,8 @@ def get_plot_data_as_json(plt):
     return {'image_base64': image_base64}
 
 def link_manager(request, directory=''):
-    return render(request, 'pages/link-manager.html')
-
+    segment = 'link_manager'
+    return render(request, 'pages/link-manager.html', {'segment': segment})
 
 def traitement_link(request):
         # Obtenez l'URL à partir du formulaire
@@ -445,6 +445,210 @@ def pandas(request):
         else:
             return HttpResponse('Le chemin du fichier est manquant.')
 
+def apply_pandas_operation(df, selected_rows, selected_columns, selected_operation):
+    # Validate if there is a valid DataFrame and selected operation
+    if df is None or selected_operation not in ['mean', 'mode', 'median', 'variance', 'std_deviation', 'min_value', 'max_value', 'range', 'sum']:
+        return None
+    # Handle the case when a row is selected
+    if selected_rows and any(selected_rows):
+        # Check if the selected rows exist in the DataFrame
+        valid_rows = [row for row in selected_rows if row in df.index]
+        if valid_rows:
+            selected_data = df.loc[valid_rows]
+        else:
+            return None
+    # Handle the case when a column is selected
+    elif selected_columns and any(selected_columns):
+        # Check if the selected columns exist in the DataFrame
+        valid_columns = [col for col in selected_columns if col in df.columns]
+        if valid_columns:
+            selected_data = df[valid_columns]
+        else:
+            return None
+    else:
+        return None
+
+    # Apply the selected operation
+    if selected_operation == 'mean':
+        result_data = selected_data.mean()
+    elif selected_operation == 'mode':
+        result_data = selected_data.mode()
+    elif selected_operation == 'median':
+        result_data = selected_data.median()
+    elif selected_operation == 'variance':
+        result_data = selected_data.var()
+    elif selected_operation == 'std_deviation':
+        result_data = selected_data.std()
+    elif selected_operation == 'min_value':
+        result_data = selected_data.min()
+    elif selected_operation == 'max_value':
+        result_data = selected_data.max()
+    elif selected_operation == 'range':
+        result_data = selected_data.max() - selected_data.min()
+    elif selected_operation == 'sum':
+        result_data = selected_data.sum()
+
+    # Convert the result to JSON
+    numeric_value = float(result_data.iloc[0]) if not result_data.empty else None
+    return numeric_value
+
+def process_operation(request):
+    # Handle the POST request for processing selected rows and columns
+    file_path = request.GET.get('file_path', '')
+    selected_rows = request.GET.getlist('selected_rows[]')
+    selected_columns = request.GET.getlist('selected_columns[]')
+    selected_operation = request.GET.get('selected_operation')
+
+    print(f"Received file_path: {file_path}, selected_rows: {selected_rows}, selected_columns: {selected_columns}")
+
+    link_path = request.GET.get('link_path')
+
+    # Check if the file path is provided
+    if file_path or link_path:
+        try:
+            # Use link_path if file_path is None
+            if not file_path:
+                file_path = link_path
+
+            # Construct the absolute file path
+            media_path = os.path.join(settings.MEDIA_ROOT)
+            absolute_file_path = os.path.join(media_path, file_path)
+
+            # Check if the file exists
+            if os.path.exists(absolute_file_path) or link_path:
+                # Read the DataFrame from the file
+                if file_path.endswith('.csv'):
+                    df = pd.read_csv(absolute_file_path)
+                elif file_path.endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(absolute_file_path)
+                elif file_path.endswith('.txt'):
+                    df = pd.read_csv(absolute_file_path)
+                elif link_path:
+                    df = pd.read_excel(link_path)
+                else:
+                    return JsonResponse({'error_message': 'Unsupported file format'})
+
+                # Apply the Pandas operation
+                result_data = apply_pandas_operation(df, selected_rows, selected_columns, selected_operation)
+
+                # Check if the result is not None before returning JsonResponse
+                if result_data is not None:
+                    return JsonResponse({'result_data': result_data})
+                else:
+                    return JsonResponse({'error_message': 'Invalid operation or no data selected'})
+        except pd.errors.ParserError:
+            return JsonResponse({'error_message': 'The file cannot be read as a valid CSV or Excel file.'})
+
+    return JsonResponse({'error_message': 'The file path is missing.'})
+
+def manipulate_dataframe(request):
+    if request.method == 'POST':
+        file_path = request.POST.get('file_path', '')
+        link_path = request.POST.get('link_path', '')
+        manipulation_type = request.POST.get('manipulation_type', '')
+        filter_expression = request.POST.get('filter_expression', '')
+
+        try:
+            # Use link_path if file_path is None
+            if not file_path:
+                file_path = link_path
+
+            # Construct the absolute file path
+            media_path = os.path.join(settings.MEDIA_ROOT)
+            absolute_file_path = os.path.join(media_path, file_path)
+
+            if os.path.exists(absolute_file_path) or link_path:
+                if file_path.endswith('.csv'):
+                    df = pd.read_csv(absolute_file_path)
+                elif file_path.endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(absolute_file_path)
+                elif file_path.endswith('.txt'):
+                    df = pd.read_csv(absolute_file_path)
+                elif link_path:
+                    df = pd.read_excel(link_path)
+                else:
+                    return JsonResponse({'error_message': 'Unsupported file format'})
+
+                # Create a copy of the DataFrame to leave the original untouched
+                df_copy = df.copy()
+
+                # Apply filtering if the manipulation type is "filter"
+                if manipulation_type == 'filter' and filter_expression:
+                    try:
+                        df_copy = df_copy.query(filter_expression)
+                    except pd.errors.ParserError:
+                        return JsonResponse({'error_message': 'Invalid filter expression'})
+
+                # Remove null values if the manipulation type is "removeNull"
+                elif manipulation_type == 'removeNull':
+                    df_copy = df_copy.dropna()
+
+                # Prepare the updated context
+                updated_context = {
+                    'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False),
+                }
+
+                return JsonResponse({'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False)})
+
+        except pd.errors.ParserError:
+            return JsonResponse({'error_message': 'The file cannot be read as a valid CSV or Excel file.'})
+
+    return JsonResponse({'error_message': 'Invalid request method'})
+
+def manipulate_dataframe(request):
+    if request.method == 'POST':
+        file_path = request.POST.get('file_path', '')
+        link_path = request.POST.get('link_path', '')
+        manipulation_type = request.POST.get('manipulation_type', '')
+        filter_expression = request.POST.get('filter_expression', '')
+
+        try:
+            # Use link_path if file_path is None
+            if not file_path:
+                file_path = link_path
+
+            # Construct the absolute file path
+            media_path = os.path.join(settings.MEDIA_ROOT)
+            absolute_file_path = os.path.join(media_path, file_path)
+
+            if os.path.exists(absolute_file_path) or link_path:
+                if file_path.endswith('.csv'):
+                    df = pd.read_csv(absolute_file_path)
+                elif file_path.endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(absolute_file_path)
+                elif file_path.endswith('.txt'):
+                    df = pd.read_csv(absolute_file_path)
+                elif link_path:
+                    df = pd.read_excel(link_path)
+                else:
+                    return JsonResponse({'error_message': 'Unsupported file format'})
+
+                # Create a copy of the DataFrame to leave the original untouched
+                df_copy = df.copy()
+
+                # Apply filtering if the manipulation type is "filter"
+                if manipulation_type == 'filter' and filter_expression:
+                    try:
+                        df_copy = df_copy.query(filter_expression)
+                    except pd.errors.ParserError:
+                        return JsonResponse({'error_message': 'Invalid filter expression'})
+
+                # Remove null values if the manipulation type is "removeNull"
+                elif manipulation_type == 'removeNull':
+                    df_copy = df_copy.dropna()
+
+                # Prepare the updated context
+                updated_context = {
+                    'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False),
+                }
+
+                return JsonResponse({'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False)})
+
+        except pd.errors.ParserError:
+            return JsonResponse({'error_message': 'The file cannot be read as a valid CSV or Excel file.'})
+
+    return JsonResponse({'error_message': 'Invalid request method'})
+
 def get_selectedValue(request):
         # Handle the POST request for processing selected rows and columns
         file_path = request.GET.get('file_path', '')
@@ -500,11 +704,10 @@ def get_selectedValue(request):
         return HttpResponse('Invalid request method.')
             
 def probability(request):
+    segment = 'probability'
     # Assuming 'probability.html' is located in the 'templates' directory
-    return render(request, 'pages/probability.html')
-
+    return render(request, 'pages/probability.html', {'segment': segment})
 # views.py
-
 
 @csrf_exempt
 def generate_pdf_plot(request):

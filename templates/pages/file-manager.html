@@ -1,6 +1,9 @@
 {% extends 'layouts/base.html' %}
 {% load static file_extension info_value %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0-beta3/css/all.min.css">
+<!-- Include FontAwesome from CDN -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-f0b3fsVNApUpSGBdKBdLK9VT2F6I7KME1ZDkqpmN2AF+MAlkgk9FfGoC6pP0K6jG0yegInkMSK4CMpL0kg1g=="
+crossorigin="anonymous" />
 {% block extrastyle %}
 <style>
   ul li {
@@ -114,7 +117,7 @@
                 </span>
                 <div class="dot-separator mx-2"></div>
                 <span data-bs-toggle="modal" data-file="{{ file.file|encoded_file_path }}" class="pandas-button">
-                  <i class="fas fa-folder" style="color: rgb(7, 147, 142)"></i> <!-- Icône de tableau de Bootstrap -->
+                  <strong><i style="color: rgb(7, 147, 142)">pd</i></strong> <!-- Icône de tableau de Bootstrap -->
                 </span>
 
                   </div>
