@@ -2,6 +2,7 @@ import os
 import uuid
 import pandas as pd
 import csv
+import plotly.express as px
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, FileResponse, Http404
 from django.conf import settings
@@ -22,6 +23,7 @@ import numpy as np
 from django.views.decorators.csrf import csrf_exempt
 import openpyxl
 import seaborn as sns
+import plotly.graph_objects as go
 from django.http import HttpResponseServerError
 import io
 import base64
@@ -259,6 +261,9 @@ def process_treatment(request):
 
                     #line
                     if plot_type == 'line':
+                        if not pd.api.types.is_numeric_dtype(df[x_column]) or not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique .")
+
                         plt.figure(figsize=(10, 6))
                         sns.lineplot(x=x_column, y=y_column, data=df)
                         plt.xlabel(x_column)
@@ -267,6 +272,9 @@ def process_treatment(request):
                         plt.legend()
                     #scatter
                     if plot_type == 'scatter':
+                        if not pd.api.types.is_numeric_dtype(df[x_column]) or not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique .")
+
                         plt.figure(figsize=(10, 6))
                         sns.scatterplot(x=x_column, y=y_column, data=df)
                         plt.xlabel(x_column)
@@ -275,6 +283,9 @@ def process_treatment(request):
                         plt.legend()               
                     #box1
                     if plot_type == 'box1':
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot 1.")
+
                         plt.figure(figsize=(10, 6))
                         sns.boxplot(x=column, data=df)
                         plt.xlabel(column)
@@ -282,6 +293,10 @@ def process_treatment(request):
                         plt.legend()  
                     #box2
                     if plot_type == 'box2':
+                        if not pd.api.types.is_numeric_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]) or  not pd.api.types.is_categorical_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]):
+                            error_message = "L'une des colonnes choisies est de type 'string' ou les deux, veuillez choisir une autre colonne."
+                            return render(request, 'traitement.html', {'error_message': error_message})
+
                         plt.figure(figsize=(10, 6))
                         sns.boxplot(x=x_column, y=y_column, data=df)
                         plt.xlabel(x_column)
@@ -290,6 +305,9 @@ def process_treatment(request):
                         plt.legend() 
                     #histogram
                     if plot_type == 'histogram':
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot 1.")
+
                         plt.figure(figsize=(10, 6))
                         sns.histplot(x=column, data=df, kde=True)
                         plt.xlabel(column)
@@ -297,6 +315,9 @@ def process_treatment(request):
                         plt.legend()
                     #kde
                     if plot_type == 'kde':
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Kde.")
+
                         plt.figure(figsize=(10, 6))
                         sns.kdeplot(x=column, data=df,fill=True)
                         plt.xlabel(column)
@@ -304,13 +325,20 @@ def process_treatment(request):
                         plt.legend()
                     #violin1
                     if plot_type == 'violin1':
+                        # Vérifier que la colonne contient uniquement des nombres
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot 1.")
+
                         plt.figure(figsize=(10, 6))
                         sns.violinplot(x=column, data=df)
                         plt.xlabel(column)
                         plt.title('Violin Plot')
                         plt.legend()
-                    #violin2
+                    #violin2  
                     if plot_type == 'violin2':
+                        if not pd.api.types.is_numeric_dtype(df[x_column]) or not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique .")
+
                         plt.figure(figsize=(10, 6))
                         sns.violinplot(x=x_column, y=y_column, data=df)
                         plt.xlabel(x_column)
@@ -319,12 +347,15 @@ def process_treatment(request):
                         plt.legend()
                     #bar
                     if plot_type == 'bar':
+                        if not pd.api.types.is_numeric_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]) or  not pd.api.types.is_categorical_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError("\033[91mErreur : Les colonnes x_column et y_column doivent être de type numérique.\033[0m")
+                       
                         plt.figure(figsize=(10, 6))
                         sns.barplot(x=x_column, y=y_column, data=df)
                         plt.xlabel(x_column)
                         plt.ylabel(y_column)
                         plt.title('Bar Plot')
-                        plt.legend()
+
                     #heatmap
                     if plot_type == 'heatmap':
                         numeric_df = df.select_dtypes(include=['number'])
@@ -336,7 +367,7 @@ def process_treatment(request):
                     if plot_type == 'pie':
                         pie_data = df[column].value_counts()
                         plt.figure(figsize=(8, 8))
-                        plt.pie(pie_data, labels=pie_data.index, autopct='%1.1f%%', startangle=140)
+                        plt.pie(pie_data, autopct='%1.1f%%', startangle=140)
                         plt.title('Pie Chart')
 
                     # Save the generated plot
@@ -349,8 +380,20 @@ def process_treatment(request):
 
             except pd.errors.ParserError as e:
                 return JsonResponse({'error_message': f'Error reading file: {str(e)}'})
+            except FileNotFoundError as e:
+                return JsonResponse({'error_message': f'File not found: {str(e)}'})
+
+            except ValueError as e:
+                return JsonResponse({'error_message': f'Invalid input values: {str(e)}'})
+
+            except pd.errors.ParserError as e:
+                return JsonResponse({'error_message': f'Error reading file: {str(e)}'})
+
+            except Exception as e:
+                return JsonResponse({'error_message': f'Unexpected error: {str(e)}'})
 
     return JsonResponse({'error_message': 'Invalid request'})
+
 
 def get_plot_data_as_json(plt):
     # Save the plot to a BytesIO object
@@ -540,60 +583,6 @@ def process_operation(request):
             return JsonResponse({'error_message': 'The file cannot be read as a valid CSV or Excel file.'})
 
     return JsonResponse({'error_message': 'The file path is missing.'})
-
-def manipulate_dataframe(request):
-    if request.method == 'POST':
-        file_path = request.POST.get('file_path', '')
-        link_path = request.POST.get('link_path', '')
-        manipulation_type = request.POST.get('manipulation_type', '')
-        filter_expression = request.POST.get('filter_expression', '')
-
-        try:
-            # Use link_path if file_path is None
-            if not file_path:
-                file_path = link_path
-
-            # Construct the absolute file path
-            media_path = os.path.join(settings.MEDIA_ROOT)
-            absolute_file_path = os.path.join(media_path, file_path)
-
-            if os.path.exists(absolute_file_path) or link_path:
-                if file_path.endswith('.csv'):
-                    df = pd.read_csv(absolute_file_path)
-                elif file_path.endswith(('.xls', '.xlsx')):
-                    df = pd.read_excel(absolute_file_path)
-                elif file_path.endswith('.txt'):
-                    df = pd.read_csv(absolute_file_path)
-                elif link_path:
-                    df = pd.read_excel(link_path)
-                else:
-                    return JsonResponse({'error_message': 'Unsupported file format'})
-
-                # Create a copy of the DataFrame to leave the original untouched
-                df_copy = df.copy()
-
-                # Apply filtering if the manipulation type is "filter"
-                if manipulation_type == 'filter' and filter_expression:
-                    try:
-                        df_copy = df_copy.query(filter_expression)
-                    except pd.errors.ParserError:
-                        return JsonResponse({'error_message': 'Invalid filter expression'})
-
-                # Remove null values if the manipulation type is "removeNull"
-                elif manipulation_type == 'removeNull':
-                    df_copy = df_copy.dropna()
-
-                # Prepare the updated context
-                updated_context = {
-                    'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False),
-                }
-
-                return JsonResponse({'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False)})
-
-        except pd.errors.ParserError:
-            return JsonResponse({'error_message': 'The file cannot be read as a valid CSV or Excel file.'})
-
-    return JsonResponse({'error_message': 'Invalid request method'})
 
 def manipulate_dataframe(request):
     if request.method == 'POST':
