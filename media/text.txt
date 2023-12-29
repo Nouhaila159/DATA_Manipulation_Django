@@ -1,4 +1,0 @@
-ID,Product,Quantity,Price,Customer
-1,Product_8,7,77.74019502359208,Customer_6
-2,Product_7,9,42.30316150548413,Customer_71
-3,Product_6,2,28.27653800910615,Customer_9

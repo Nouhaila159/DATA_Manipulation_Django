@@ -1,0 +1,4 @@
+Product,Customer
+Product_8,Customer_6
+Product_7,Customer_71
+Product_6,Customer_9

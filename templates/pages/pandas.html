@@ -81,19 +81,26 @@
                     <select class="form-select" id="manipulateDF" onchange="toggleFilterInput()">
                         <option value="removeNull">Remove Null values</option>
                         <option value="filter">Filter</option>
+                        <option value="groupBy">Group By </option>
+
                     </select>
 
-            <!-- Add the button to execute the operation -->
-            <button type="button" class="btn btn-primary mt-2" onclick="manipulateDF()">Manipulate</button>
-
+           
             <!-- Add an input field for the filter expression -->
             <div id="filterExpression" style="margin-top: 10px; display: none;">
-                <label for="filterExpressionInput">Filter Expression:</label>
                 <label for="filterExpressionInput">Filter Expression:</label>
                 <input type="text" class="form-control" id="filterExpressionInput" placeholder="Price>40">
                 <p class="text-muted">Enter filter expressions like (Price > 40) or (Product == 'Product_1').</p>
 
             </div>
+            <div id="groupByExpression" style="margin-top: 10px; display: none;">
+                <label for="groupByExpressionInput">Group By Expression:</label>
+                <input type="text" class="form-control" id="groupByExpressionInput" placeholder="male">
+               
+
+            </div>
+            <button type="button" class="btn btn-primary mt-2" onclick="manipulateDF()">Manipulate</button>
+
 
             <div id="manipulate-result" style="overflow: auto; max-height: 500px;"></div>          
             </div>
@@ -317,14 +324,16 @@ function applyOperation() {
         //console.error('Error during AJAX request: ', error);
     });
 }
+        function toggleFilterInput() {
+    var manipulationType = document.getElementById("manipulateDF").value;
+    var filterExpressionDiv = document.getElementById("filterExpression");
+    var groupByExpression = document.getElementById("groupByExpression");
+    // Toggle the display of the filter input field based on the selected manipulation type
+    filterExpressionDiv.style.display = (manipulationType === 'filter') ? 'block' : 'none';
+    groupByExpression.style.display = (manipulationType === 'groupBy') ? 'block' : 'none';
+}
 
-    function toggleFilterInput() {
-        var manipulationType = document.getElementById("manipulateDF").value;
-        var filterExpressionDiv = document.getElementById("filterExpression");
-
-        // Toggle the display of the filter input field based on the selected manipulation type
-        filterExpressionDiv.style.display = (manipulationType === 'filter') ? 'block' : 'none';
-    }
+    
 
  // Function to toggle the filter input based on the selected manipulation type
  function manipulateDF() {
@@ -332,9 +341,9 @@ function applyOperation() {
 
     // Check if the selected manipulation type is "Filter"
     if (manipulationType === 'filter') {
-        // Retrieve the filter expression from the input field
         var filterExpression = document.getElementById("filterExpressionInput").value;
-        // You can further validate or sanitize the filter expression as needed
+    }if (manipulationType === 'groupBy') {
+        var groupByExpression = document.getElementById("groupByExpressionInput").value;
     }
 
     // Continue with the rest of your code for AJAX request and processing
@@ -352,18 +361,22 @@ function applyOperation() {
             'link_path': link_path,
             'manipulation_type': manipulationType,
             'filter_expression': filterExpression,
+            'group_by_expression': groupByExpression,
         }),
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(response => response.json())  // Convertir la réponse en objet JavaScript
+.then(data => {
     if (data.error_message) {
         console.error(data.error_message);
     } else {
-        // Display the manipulated DataFrame in the specified container
-        document.getElementById("manipulate-result").innerHTML = data.file_content;  // Update to use 'file_content'
+        // Afficher le DataFrame manipulé ou le nombre d'occurrences en fonction du type de manipulation
+        if (manipulationType === 'groupBy') {
+            document.getElementById("manipulate-result").innerHTML = `Occurrences Count of ${data.group_by_expression} : ${data.occurrences_count}`;
+        } else {
+            document.getElementById("manipulate-result").innerHTML = data.file_content;
+        }
     }
 })
-
     .catch(error => {
        // alert('Error during AJAX request: ' + error);
        alert('Please check the data you are entering ');

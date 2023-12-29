@@ -11,6 +11,7 @@ urlpatterns = [
     path('upload-file/', views.upload_file, name='upload_file'),
     path('save-info/<str:file_path>/', views.save_info, name='save_info'),
     path('traitement/', views.traitement, name='traitement'),
+
     path('process_treatment/', views.process_treatment, name='process_treatment'),
     #path('traitement/<str:image_filename>/', views.traitement_image, name='traitement'),
     
@@ -34,5 +35,14 @@ urlpatterns = [
     path('generate_normal_plot/', views.generate_normal_plot, name='generate_normal_plot'),
     path('generate_exponential_plot/', views.generate_exponential_plot, name='generate_exponential_plot'),
 
+    #mesures
+    path('mesures/', views.mesures, name='mesures'),
+
+    #dash
+    path('/', views.dashboard, name='dashboard'),
+
+    #Tests
+    path('tests/', views.tests, name='tests'),
+    path('test_traitement/', views.test_traitement, name='test_traitement'),
 
 ]

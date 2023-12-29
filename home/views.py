@@ -2,7 +2,9 @@ import os
 import uuid
 import pandas as pd
 import csv
+import re
 import plotly.express as px
+import plotly.figure_factory as ff
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, FileResponse, Http404
 from django.conf import settings
@@ -24,10 +26,17 @@ from django.views.decorators.csrf import csrf_exempt
 import openpyxl
 import seaborn as sns
 import plotly.graph_objects as go
+from statistics import mode
 from django.http import HttpResponseServerError
 import io
 import base64
 import matplotlib
+import plotly.graph_objs as go
+from sklearn.linear_model import LinearRegression
+import plotly.io as pio
+from scipy.stats import t
+from scipy import stats
+from sklearn.linear_model import LinearRegression
 matplotlib.use('Agg')
 
 # Create your views here.
@@ -145,7 +154,6 @@ def generate_nested_directory(root_path, current_path):
             directories.append({'id': unique_id, 'name': name, 'path': os.path.relpath(nested_path, root_path), 'directories': nested_directories})
     return directories
 
-
 def delete_file(request, file_path):
     path = file_path.replace('%slash%', '/')
     absolute_file_path = os.path.join(settings.MEDIA_ROOT, path)
@@ -153,7 +161,6 @@ def delete_file(request, file_path):
     print("File deleted", absolute_file_path)
     return redirect(request.META.get('HTTP_REFERER'))
 
-    
 def download_file(request, file_path):
     path = file_path.replace('%slash%', '/')
     absolute_file_path = os.path.join(settings.MEDIA_ROOT, path)
@@ -163,7 +170,6 @@ def download_file(request, file_path):
             response['Content-Disposition'] = 'inline; filename=' + os.path.basename(absolute_file_path)
             return response
     raise Http404
-
 
 def upload_file(request):
     media_path = os.path.join(settings.MEDIA_ROOT)
@@ -177,7 +183,6 @@ def upload_file(request):
                 destination.write(chunk)
 
     return redirect(request.META.get('HTTP_REFERER'))
-
 
 def traitement(request):
     file_path = request.GET.get('file_path', '')
@@ -214,16 +219,16 @@ def traitement(request):
     else:
         return HttpResponse('Le chemin du fichier est manquant.')
 
-
-def save_image(plt, settings, result, key_for_image, plot_type):
-    image_filename = f'{plot_type}_{str(uuid.uuid4())}.png'  # Adjust the filename as needed
+def save_image(fig, settings, result, key_for_image, plot_type):
+    image_filename = f'{plot_type}_{str(uuid.uuid4())}.png'
     result_directory = os.path.join(settings.MEDIA_ROOT, 'results')
 
     if not os.path.exists(result_directory):
         os.makedirs(result_directory)
 
     image_path = os.path.join(result_directory, image_filename)
-    plt.savefig(image_path, format='png')
+    pio.write_image(fig, image_path)
+
     result[key_for_image] = os.path.join('results', image_filename)
 
 def process_treatment(request):
@@ -258,123 +263,116 @@ def process_treatment(request):
                         df = pd.read_excel(link_path)
                     else:
                         return JsonResponse({'error_message': 'Unsupported file format'})
-
-                    #line
+                    
+                    # Line Plot
                     if plot_type == 'line':
+                        if not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError(f"La colonne {y_column} doit contenir uniquement des nombres numériques.")
+
+                        fig = px.line(df, x=x_column, y=y_column, title='Line Plot')
+
+                    # Scatter Plot
+                    elif plot_type == 'scatter':
                         if not pd.api.types.is_numeric_dtype(df[x_column]) or not pd.api.types.is_numeric_dtype(df[y_column]):
-                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique .")
+                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique.")
 
-                        plt.figure(figsize=(10, 6))
-                        sns.lineplot(x=x_column, y=y_column, data=df)
-                        plt.xlabel(x_column)
-                        plt.ylabel(y_column)
-                        plt.title('Line Plot')
-                        plt.legend()
-                    #scatter
-                    if plot_type == 'scatter':
+                        fig = px.scatter(df, x=x_column, y=y_column, title='Scatter Plot')
+
+                    # Box Plot 1
+                    elif plot_type == 'box1':
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres.")
+
+                        fig = px.box(df, y=column, title='Box Plot')
+
+                    # Box Plot 2
+                    elif plot_type == 'box2':
+                        if not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError(f"La colonne {y_column} doit contenir uniquement des nombres numériques.")
+
+                        fig = px.box(df, x=x_column, y=y_column, title='Box Plot')
+
+                    # Histogram
+                    elif plot_type == 'histogram':
+                        fig = px.histogram(df, x=column, title='Histogram Plot')
+
+                    # KDE (Kernel Density Estimation) Plot
+                     
+                    elif plot_type == 'kde':
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres.")
+
+                        data_to_plot = df[column].replace([np.inf, -np.inf], np.nan).dropna()
+
+                        group_labels = ['distplot']
+                        fig = ff.create_distplot([data_to_plot], group_labels, curve_type='kde')
+
+                        # Mise à jour de la disposition (layout)
+                        fig.update_layout(
+                            title="Kernel Density Estimation (KDE) Plot",
+                            yaxis_title="Density",
+                            xaxis_title=column,
+                            showlegend=False
+                        )
+
+                    # Violin Plot 1
+                    elif plot_type == 'violin1':
+                        if not pd.api.types.is_numeric_dtype(df[column]):
+                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot.")
+
+                        fig = px.violin(df, x=column, box=True, points="all", title='Violin Plot')
+
+                    # Violin Plot 2
+                    elif plot_type == 'violin2':
                         if not pd.api.types.is_numeric_dtype(df[x_column]) or not pd.api.types.is_numeric_dtype(df[y_column]):
-                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique .")
+                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique.")
 
-                        plt.figure(figsize=(10, 6))
-                        sns.scatterplot(x=x_column, y=y_column, data=df)
-                        plt.xlabel(x_column)
-                        plt.ylabel(y_column)
-                        plt.title('Scatter Plot')
-                        plt.legend()               
-                    #box1
-                    if plot_type == 'box1':
-                        if not pd.api.types.is_numeric_dtype(df[column]):
-                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot 1.")
+                        fig = px.violin(df, x=x_column, y=y_column, box=True, points="all", title='Violin Plot')
 
-                        plt.figure(figsize=(10, 6))
-                        sns.boxplot(x=column, data=df)
-                        plt.xlabel(column)
-                        plt.title('Box Plot')
-                        plt.legend()  
-                    #box2
-                    if plot_type == 'box2':
-                        if not pd.api.types.is_numeric_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]) or  not pd.api.types.is_categorical_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]):
-                            error_message = "L'une des colonnes choisies est de type 'string' ou les deux, veuillez choisir une autre colonne."
-                            return render(request, 'traitement.html', {'error_message': error_message})
+                    # Bar Plot
+                    elif plot_type == 'bar':
+                        if not pd.api.types.is_numeric_dtype(df[y_column]):
+                            raise ValueError(f"La colonne {y_column} doit contenir uniquement des nombres numériques.")
 
-                        plt.figure(figsize=(10, 6))
-                        sns.boxplot(x=x_column, y=y_column, data=df)
-                        plt.xlabel(x_column)
-                        plt.ylabel(y_column)
-                        plt.title('Box Plot')
-                        plt.legend() 
-                    #histogram
-                    if plot_type == 'histogram':
-                        if not pd.api.types.is_numeric_dtype(df[column]):
-                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot 1.")
+                        fig = px.bar(df, x=x_column, y=y_column, title='Bar Plot')
 
-                        plt.figure(figsize=(10, 6))
-                        sns.histplot(x=column, data=df, kde=True)
-                        plt.xlabel(column)
-                        plt.title('Histograme')
-                        plt.legend()
-                    #kde
-                    if plot_type == 'kde':
-                        if not pd.api.types.is_numeric_dtype(df[column]):
-                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Kde.")
-
-                        plt.figure(figsize=(10, 6))
-                        sns.kdeplot(x=column, data=df,fill=True)
-                        plt.xlabel(column)
-                        plt.title('Kde Plot')
-                        plt.legend()
-                    #violin1
-                    if plot_type == 'violin1':
-                        # Vérifier que la colonne contient uniquement des nombres
-                        if not pd.api.types.is_numeric_dtype(df[column]):
-                            raise ValueError(f"La colonne {column} doit contenir uniquement des nombres pour le Violin Plot 1.")
-
-                        plt.figure(figsize=(10, 6))
-                        sns.violinplot(x=column, data=df)
-                        plt.xlabel(column)
-                        plt.title('Violin Plot')
-                        plt.legend()
-                    #violin2  
-                    if plot_type == 'violin2':
-                        if not pd.api.types.is_numeric_dtype(df[x_column]) or not pd.api.types.is_numeric_dtype(df[y_column]):
-                            raise ValueError(f"La colonne {x_column} et colonne {y_column} doivent être de type numérique .")
-
-                        plt.figure(figsize=(10, 6))
-                        sns.violinplot(x=x_column, y=y_column, data=df)
-                        plt.xlabel(x_column)
-                        plt.ylabel(y_column)
-                        plt.title('Violin Plot')
-                        plt.legend()
-                    #bar
-                    if plot_type == 'bar':
-                        if not pd.api.types.is_numeric_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]) or  not pd.api.types.is_categorical_dtype(df[x_column]) and not pd.api.types.is_numeric_dtype(df[y_column]):
-                            raise ValueError("\033[91mErreur : Les colonnes x_column et y_column doivent être de type numérique.\033[0m")
-                       
-                        plt.figure(figsize=(10, 6))
-                        sns.barplot(x=x_column, y=y_column, data=df)
-                        plt.xlabel(x_column)
-                        plt.ylabel(y_column)
-                        plt.title('Bar Plot')
-
-                    #heatmap
-                    if plot_type == 'heatmap':
+                    # Heatmap
+                    elif plot_type == 'heatmap':
                         numeric_df = df.select_dtypes(include=['number'])
+
+                        if numeric_df.empty:
+                            raise ValueError("Les données pour le heatmap doivent contenir au moins une colonne numérique.")
+
                         correlation_matrix = numeric_df.corr()
-                        plt.figure(figsize=(10, 6))
-                        sns.heatmap(correlation_matrix, annot=True, cmap='YlGnBu', fmt=".2f")
-                        plt.title('Correlation Matrix Heatmap')
-                    #pie
-                    if plot_type == 'pie':
-                        pie_data = df[column].value_counts()
-                        plt.figure(figsize=(8, 8))
-                        plt.pie(pie_data, autopct='%1.1f%%', startangle=140)
-                        plt.title('Pie Chart')
+
+                        # Create a heatmap using go.Heatmap
+                        heatmap = go.Heatmap(
+                            z=correlation_matrix.values,
+                            x=correlation_matrix.columns,
+                            y=correlation_matrix.index,
+                            colorscale='Blues',
+                            colorbar=dict(title='Correlation')
+                        )
+
+                        # Create a layout for the heatmap
+                        layout = go.Layout(
+                            title='Correlation Matrix Heatmap',
+                            xaxis=dict(title='Columns'),
+                            yaxis=dict(title='Columns')
+                        )
+
+                        # Create a figure and update layout
+                        fig = go.Figure(data=[heatmap], layout=layout)
+
+                    # Pie Chart
+                    elif plot_type == 'pie':
+                        fig = px.pie(df, names=column, title='Pie Chart')
 
                     # Save the generated plot
-                    save_image(plt, settings, result, 'image_url', plot_type)
+                    save_image(fig, settings, result, 'image_url', plot_type)
 
-                    plot_data = get_plot_data_as_json(plt)
-                    plt.close()
+                    # Convert the Plotly figure to JSON
+                    plot_data = fig.to_json()
 
                     return JsonResponse({'plot_data': plot_data})
 
@@ -393,18 +391,6 @@ def process_treatment(request):
                 return JsonResponse({'error_message': f'Unexpected error: {str(e)}'})
 
     return JsonResponse({'error_message': 'Invalid request'})
-
-
-def get_plot_data_as_json(plt):
-    # Save the plot to a BytesIO object
-    image_stream = io.BytesIO()
-    plt.savefig(image_stream, format='png')
-    plt.close()
-
-    # Encode the image data as base64
-    image_base64 = base64.b64encode(image_stream.getvalue()).decode('utf-8')
-
-    return {'image_base64': image_base64}
 
 def link_manager(request, directory=''):
     segment = 'link_manager'
@@ -435,8 +421,11 @@ def get_columns(request):
             df = pd.read_excel(data_frame_link)
             columns_info = df.dtypes.reset_index()
             columns_info.columns = ['Colonne', 'Type de données']
+            
             return JsonResponse({'columns': df.columns.tolist()})
-   
+
+    return JsonResponse({})
+
 def pandas(request):
         file_path = request.GET.get('file_path', '')
         link_path = request.GET.get('link_path')
@@ -590,13 +579,14 @@ def manipulate_dataframe(request):
         link_path = request.POST.get('link_path', '')
         manipulation_type = request.POST.get('manipulation_type', '')
         filter_expression = request.POST.get('filter_expression', '')
+        group_by_expression=request.POST.get('group_by_expression', '')
 
         try:
-            # Use link_path if file_path is None
+            # Utiliser link_path si file_path est None
             if not file_path:
                 file_path = link_path
 
-            # Construct the absolute file path
+            # Construire le chemin de fichier absolu
             media_path = os.path.join(settings.MEDIA_ROOT)
             absolute_file_path = os.path.join(media_path, file_path)
 
@@ -610,33 +600,48 @@ def manipulate_dataframe(request):
                 elif link_path:
                     df = pd.read_excel(link_path)
                 else:
-                    return JsonResponse({'error_message': 'Unsupported file format'})
+                    return JsonResponse({'error_message': 'Format de fichier non pris en charge'})
 
-                # Create a copy of the DataFrame to leave the original untouched
+                # Créer une copie du DataFrame pour laisser l'original intact
                 df_copy = df.copy()
 
-                # Apply filtering if the manipulation type is "filter"
+                # Appliquer le filtrage si le type de manipulation est "filter"
                 if manipulation_type == 'filter' and filter_expression:
                     try:
+                        # Convertir les noms de colonnes et l'expression de filtre en minuscules
+                        df_copy.columns = map(str.lower, df_copy.columns)
+                        filter_expression = filter_expression.lower()
+                        
+                        # Appliquer l'expression de filtre
                         df_copy = df_copy.query(filter_expression)
                     except pd.errors.ParserError:
-                        return JsonResponse({'error_message': 'Invalid filter expression'})
+                        return JsonResponse({'error_message': 'Expression de filtre invalide'})
 
-                # Remove null values if the manipulation type is "removeNull"
+                # Supprimer les valeurs nulles si le type de manipulation est "removeNull"
                 elif manipulation_type == 'removeNull':
                     df_copy = df_copy.dropna()
+                    
+                elif manipulation_type == 'groupBy' and group_by_expression:
+                    try:
+                        # Convertir les noms de colonnes en minuscules
+                        df_copy.columns = map(str.lower, df_copy.columns)
+                        group_by_expression = group_by_expression.lower()
 
-                # Prepare the updated context
-                updated_context = {
-                    'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False),
-                }
+                        # Compter le nombre d'occurrences de la valeur dans toute la DataFrame
+                        occurrences_count = int(df_copy.applymap(lambda x: group_by_expression in str(x).lower()).sum().sum())
+
+                        return JsonResponse({'group_by_expression': group_by_expression, 'occurrences_count': occurrences_count})
+                    except pd.errors.ParserError:
+                        return JsonResponse({'error_message': 'Expression "Group By" invalide'})
+
+
 
                 return JsonResponse({'file_content': df_copy.to_html(classes='table table-bordered table-striped text-center', index=False)})
 
         except pd.errors.ParserError:
-            return JsonResponse({'error_message': 'The file cannot be read as a valid CSV or Excel file.'})
+            return JsonResponse({'error_message': "Le fichier ne peut pas être lu comme un fichier CSV ou Excel valide."})
 
-    return JsonResponse({'error_message': 'Invalid request method'})
+    return JsonResponse({'error_message': 'Méthode de requête non valide'})
 
 def get_selectedValue(request):
         # Handle the POST request for processing selected rows and columns
@@ -696,7 +701,6 @@ def probability(request):
     segment = 'probability'
     # Assuming 'probability.html' is located in the 'templates' directory
     return render(request, 'pages/probability.html', {'segment': segment})
-# views.py
 
 @csrf_exempt
 def generate_pdf_plot(request):
@@ -718,7 +722,7 @@ def generate_pdf_plot(request):
 
         result = {}
         # Save the generated plot
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -739,7 +743,7 @@ def generate_bernoulli_plot(request):
 
         result = {}
         # Sauvegarder le graphique généré
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -759,7 +763,7 @@ def generate_binomial_plot(request):
         ax.set(xlabel='Binomial', ylabel='Probabilité')
 
         result = {}
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -780,7 +784,7 @@ def generate_uniform_plot(request):
 
         result = {}
         # Sauvegarder le graphique généré
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -802,7 +806,7 @@ def generate_poisson_plot(request):
 
         result = {}
         # Sauvegarder le graphique généré
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -823,7 +827,7 @@ def generate_normal_plot(request):
 
         result = {}
         # Sauvegarder le graphique généré
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -845,7 +849,7 @@ def generate_exponential_plot(request):
 
         result = {}
         # Save the generated plot
-        save_image(plt, settings, result, 'image_url', 'plot')
+        save_image2(plt, settings, result, 'image_url', 'plot')
 
         plot_data = get_plot_data_as_json(plt)
         plt.close()
@@ -854,3 +858,314 @@ def generate_exponential_plot(request):
 
     except Exception as e:
         return JsonResponse({'error_message': f'Error generating Exponential plot: {str(e)}'})
+        
+def get_plot_data_as_json(plt):
+    # Save the plot to a BytesIO object
+    image_stream = io.BytesIO()
+    plt.savefig(image_stream, format='png')
+    plt.close()
+
+    # Encode the image data as base64
+    image_base64 = base64.b64encode(image_stream.getvalue()).decode('utf-8')
+
+    return {'image_base64': image_base64}
+
+def save_image2(plt, settings, result, key_for_image, plot_type):
+    image_filename = f'{plot_type}_{str(uuid.uuid4())}.png'  # Adjust the filename as needed
+    result_directory = os.path.join(settings.MEDIA_ROOT, 'results')
+
+    if not os.path.exists(result_directory):
+        os.makedirs(result_directory)
+
+    image_path = os.path.join(result_directory, image_filename)
+    plt.savefig(image_path, format='png')
+    result[key_for_image] = os.path.join('results', image_filename)
+
+def mode(valeurs):
+    uniques, counts = np.unique(valeurs, return_counts=True)
+    max_count = np.max(counts)
+    modes = uniques[counts == max_count]
+    if max_count == 1:
+        return "Il n'y a pas de mode"
+    else:
+        return modes.tolist()
+
+def mesures(request):
+    segment = 'mesures'
+    error_message = None
+    initial_values = None
+    
+    if request.method == 'POST':
+        valeurs_input = request.POST.get('valeurs', '')
+        initial_values = valeurs_input
+
+        try:
+            # Replace commas with dots for decimal points
+            valeurs_input = valeurs_input.replace(',', '.')
+
+            # Traiter les valeurs saisies avec n'importe quel séparateur
+            separators = ['/', '_', ';', ':', ' ', '\s+']
+            separator_pattern = '|'.join(map(re.escape, separators))
+            
+            # Split the values
+            split_values = re.split(separator_pattern, valeurs_input)
+
+            # Process the values (integers or floats)
+            valeurs = [float(x.replace(',', '.')) if '.' in x or ',' in x else int(x) for x in split_values if x]
+           
+            # Calcul des statistiques
+            mean_value = np.mean(valeurs)
+            median_value = np.median(valeurs)
+            mode_value = mode(valeurs)
+            variance_value = np.var(valeurs, ddof=1)
+            #variance_value = np.var(valeurs)
+            stdev_value = np.std(valeurs)
+            etendue_value = np.ptp(valeurs)  # Peak-to-peak, which is the range
+
+            return render(request, 'pages/calculs.html', {'mean': mean_value,
+                                                     'median': median_value, 'mode': mode_value,
+                                                     'variance': variance_value, 'stdev': stdev_value,
+                                                     'etendue': etendue_value,
+                                                     'segment': segment, 'initial_values': initial_values})
+        except ValueError as e:
+            # Handle the ValueError and set the error_message
+            error_message = "Erreur: Veuillez saisir des valeurs numériques valides."
+
+    # In case of 'GET' request, still pass initial_values to the template
+    return render(request, 'pages/calculs.html', {'segment': segment, 'error_message': error_message, 'initial_values': initial_values})
+
+def tests(request, directory=''):
+    segment = 'tests'
+    return render(request, 'pages/tests.html', {'segment': segment})
+
+def calculate_z_test(field, sigma, n, significance):
+    # Convertir les valeurs en nombres
+    field = float(field)
+    sigma = float(sigma)
+    n = int(n)
+    significance = float(significance)
+
+    # Calculer le z-test
+    z_stat = norm.sf(abs((field - 0) / (sigma / np.sqrt(n)))) * 2  # Two-tailed test
+
+    # Interpréter les résultats du test
+    if z_stat < significance:
+        hypothesis_result = "Hypothesis rejected: The sample mean is significantly different from the population mean."
+    else:
+        hypothesis_result = "Hypothesis not rejected : There is no significant difference between the sample mean and the population mean."
+
+    return z_stat, hypothesis_result
+
+def calculate_z_test(field,zTestmi,sigma, n, significance):
+    # Convertir les valeurs en nombres
+    field = float(field)
+    sigma = float(sigma)
+    n = int(n)
+    significance = float(significance)
+    zTestmi = float(zTestmi.replace(',', '.'))
+    # Calculer le z-test
+    z_stat = (field - zTestmi) / (sigma / np.sqrt(n))
+
+    # Calculer les p-values pour les trois cas
+    p_value_two_sided = norm.sf(abs(z_stat)) * 2  # Bilatéral
+    p_value_left = norm.cdf(z_stat)  # Unilatéral à gauche
+    p_value_right = norm.sf(z_stat)  # Unilatéral à droite
+
+    # Interpréter les résultats du test
+    hypothesis_result_two_sided = "Hypothesis rejected: The sample mean is significantly different from the population mean." if p_value_two_sided < significance else "Hypothesis not rejected: There is no significant difference between the sample mean and the population mean."
+
+    hypothesis_result_left = "Hypothesis rejected: The sample mean is significantly less than the population mean." if p_value_left < significance else "Hypothesis not rejected: There is no significant difference, or the sample mean is greater than the population mean."
+
+    hypothesis_result_right = "Hypothesis rejected: The sample mean is significantly greater than the population mean." if p_value_right < significance else "Hypothesis not rejected: There is no significant difference, or the sample mean is less than the population mean."
+
+    # Retourner les résultats du test sous forme de dictionnaire
+    return {
+        'z_statistic': z_stat,
+        'p_value_two_sided': p_value_two_sided,
+        'p_value_left': p_value_left,
+        'p_value_right': p_value_right,
+        'hypothesis_result_two_sided': hypothesis_result_two_sided,
+        'hypothesis_result_left': hypothesis_result_left,
+        'hypothesis_result_right': hypothesis_result_right
+    }
+
+def calculate_linear_regression(x_values, y_values):
+    # Convert x_values and y_values to numpy arrays
+    x_values = np.array(x_values)
+    y_values = np.array(y_values)
+
+    # Use numpy's polyfit to perform linear regression and get the slope and intercept
+    slope, intercept = np.polyfit(x_values, y_values, 1)
+
+    # Retourner uniquement la pente et l'ordonnée à l'origine
+    return slope, intercept
+
+def calculate_t_test(field1, field2, s1, s2, n1, n2, significance):
+    # Convertir les valeurs en nombres
+    field1 = float(field1)
+    field2 = float(field2)
+    s1 = float(s1)
+    s2 = float(s2)
+    n1 = int(n1)
+    n2 = int(n2)
+
+    # Calculer la statistique t
+    t_stat, p_value = stats.ttest_ind_from_stats(mean1=field1, std1=s1, nobs1=n1, mean2=field2, std2=s2, nobs2=n2)
+
+    # Tester l'hypothèse nulle
+    if p_value < significance:
+        hypothesis_result = "Reject the null hypothesis"
+    else:
+        hypothesis_result = "Fail to reject the null hypothesis"
+
+    return t_stat, p_value, hypothesis_result
+
+def calculate_t_test2(field, tTestmi, sigma, n, significance):
+    # Convertir les valeurs en nombres
+    field = float(field)
+    sigma = float(sigma)
+    n = int(n)
+    significance = float(significance)
+    tTestmi = float(tTestmi)  
+
+    # Calculer le t-test
+    t_statistic = (field - tTestmi) / (sigma / np.sqrt(n))
+
+    # Calculer la p-value pour le test bilatéral
+    p_value_two_sided = t.sf(abs(t_statistic), df=n-1) * 2
+
+    # Interpréter les résultats du test
+    hypothesis_result_two_sided = "Hypothesis rejected: The sample mean is significantly different from the specified mean." if p_value_two_sided < significance else "Hypothesis not rejected: There is no significant difference between the sample mean and the specified mean."
+
+    # Retourner les résultats du test sous forme de dictionnaire
+    return {
+        't_statistic': t_statistic,
+        'p_value_two_sided': p_value_two_sided,
+        'hypothesis_result_two_sided': hypothesis_result_two_sided,
+    }
+
+def test_traitement(request):
+    if request.method == 'GET':
+        test_type = request.GET.get('testType')
+        if test_type:
+            # Récupérer les paramètres communs à tous les tests
+            significance = float(request.GET.get('significance', 0.05))
+
+            if test_type == 'tTest':
+                # Récupérer les paramètres spécifiques au t-test
+                field1 = request.GET.get('tTestField1')
+                field2 = request.GET.get('tTestField2')
+                s1 = request.GET.get('tTestS1')
+                s2 = request.GET.get('tTestS2')
+                n1 = request.GET.get('tTestN1')
+                n2 = request.GET.get('tTestN2')
+
+                t_stat, p_value, hypothesis_result = calculate_t_test(field1, field2, s1, s2, n1, n2, significance)
+
+                # Construire la réponse JSON avec chaque résultat dans des phrases distinctes
+                result_json = {
+                    't_statistic': t_stat,
+                    'p_value': p_value,
+                    'hypothesis_result': hypothesis_result,
+                    'formula': f"t = (X̄1 - X̄2) / sqrt(s1^2/n1 + s2^2/n2)"
+                }
+
+                return JsonResponse(result_json)
+                
+            elif test_type == 'zTest':
+                # Récupérer les paramètres spécifiques au z-test
+                field = request.GET.get('zTestField')
+                sigma = request.GET.get('zTestSigma')
+                n = request.GET.get('zTestN')
+                zTestmi =request.GET.get('zTestmi')
+                z_test_results = calculate_z_test(field,  zTestmi,sigma, n, significance)
+
+                # Extraire chaque résultat pour l'affichage
+                z_statistic_result = z_test_results['z_statistic']
+                p_value_two_sided_result = z_test_results['p_value_two_sided']
+                p_value_left_result = z_test_results['p_value_left']
+                p_value_right_result = z_test_results['p_value_right']
+                hypothesis_result_two_sided = z_test_results['hypothesis_result_two_sided']
+                hypothesis_result_left = z_test_results['hypothesis_result_left']
+                hypothesis_result_right = z_test_results['hypothesis_result_right']
+
+                # Construire la réponse JSON avec chaque résultat dans des phrases distinctes
+                result_json = {
+                    'z_statistic': z_statistic_result,
+                    'p_value_two_sided': p_value_two_sided_result,
+                    'p_value_left': p_value_left_result,
+                    'p_value_right': p_value_right_result,
+                    'hypothesis_result_two_sided': hypothesis_result_two_sided,
+                    'hypothesis_result_left': hypothesis_result_left,
+                    'hypothesis_result_right': hypothesis_result_right,
+                    'formula': f"Z = (X̄ - μ) / (σ/ √n)"
+                }
+
+                return JsonResponse(result_json)
+            
+            elif test_type == 'tTest2':
+                # Récupérer les paramètres spécifiques au t-test
+                field = request.GET.get('tTestField2')
+                sigma = request.GET.get('tTestSigma2')
+                n = request.GET.get('testTestN2')
+                tTestmi = request.GET.get('tTestmi2')
+                t_test_results = calculate_t_test2(field, tTestmi, sigma, n, significance)
+
+                # Extraire chaque résultat pour l'affichage
+                t_statistic_result = t_test_results['t_statistic']
+                p_value_two_sided_result = t_test_results['p_value_two_sided']
+                hypothesis_result_two_sided = t_test_results['hypothesis_result_two_sided']
+
+                # Construire la réponse JSON avec chaque résultat dans des phrases distinctes
+                result_json = {
+                    't_statistic': t_statistic_result,
+                    'p_value_two_sided': p_value_two_sided_result,
+                    'hypothesis_result_two_sided': hypothesis_result_two_sided,
+                    'formula': f"t = (X̄ - μ) / (σ/ √n)"
+                }
+
+                return JsonResponse(result_json)
+
+            elif test_type == 'linearRegression':
+                x_values_str = request.GET.get('linearRegressionX', '')
+                y_values_str = request.GET.get('linearRegressionY', '')
+
+                x_values = [float(value) for value in x_values_str.split()]
+                y_values = [float(value) for value in y_values_str.split()]
+
+                # Appeler la fonction calculate_linear_regression
+                slope, intercept = calculate_linear_regression(x_values, y_values)
+
+                # Créer un graphique de dispersion avec la ligne de régression
+                plt.scatter(x_values, y_values, label='Data points')
+                plt.plot(x_values, slope * np.array(x_values) + intercept, color='red', label='Regression line')
+                plt.xlabel('Variable indépendante (X)')
+                plt.ylabel('Variable dépendante (Y)')
+                plt.legend()
+
+                # Convertir le graphique en image
+                image_stream = io.BytesIO()
+                plt.savefig(image_stream, format='png')
+                image_stream.seek(0)
+
+                # Encoder l'image en base64 pour l'inclure dans la réponse JSON
+                image_data = base64.b64encode(image_stream.read()).decode('utf-8')
+
+                # Fermer le graphique
+                plt.close()
+
+                # Retourner l'image en réponse JSON, ainsi que la pente et l'ordonnée à l'origine
+                return JsonResponse({'image_path': image_data, 'slope': slope, 'intercept': intercept})
+
+            else:
+                return JsonResponse({'error': 'Invalid test type'})
+
+        else:
+            return JsonResponse({'error': 'Invalid test type'})
+    else:
+        return JsonResponse({'error': 'Invalid request method'})
+
+def dashboard(request):
+    segment = 'dashboard'
+    # Assuming 'probability.html' is located in the 'templates' directory
+    return render(request, 'pages/dashboard.html', {'segment': segment})

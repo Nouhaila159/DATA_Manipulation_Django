@@ -81,13 +81,21 @@
                     </div>
 
                     <div id="plotImage" style="display: none;">
-                        <img id="generatedPlot" src="" alt="Generated Plot" style="width: 600px; height: 600px;">
+                        <div id="generatedPlot" style="width: 600px; height: 600px;"></div>
+                    </div>
+
+                    <div id='errorMessage' class="card" style="display: none; background-color: #ffcccc; padding: 10px; border: 1px solid #ff0000; margin: 10px;">
+                        <div id="error" style="display: none; font-size: 16px; font-weight: bold;">
+                            <!-- Contenu de l'erreur sera ajouté ici dynamiquement par JavaScript -->
+                        </div>
                     </div>
                 </div>
                 
         </div>
             
     </div>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
 
     window.onload = function() {
@@ -135,7 +143,7 @@ function updateColumnSelectOptions() {
     }
 
     // Fonction pour remplir les options des sélecteurs avec les colonnes
-    function fillSelectOptions(columns) {
+function fillSelectOptions(columns) {
         // Remplissez le sélecteur xColumn
         var xColumnSelect = document.getElementById("xColumn");
         xColumnSelect.innerHTML = "";
@@ -178,6 +186,7 @@ function Execute() {
     var Column = document.getElementById("Column").value;
     var plotType = document.getElementById("plotType").value;
     var linkInput = document.getElementById("dataFrameLink");
+    var errorDiv = document.getElementById('error');
     var link = linkInput.value;
     // Fetch the CSRF token from the cookie
     var csrfToken = getCookie('csrftoken');
@@ -199,24 +208,42 @@ function Execute() {
         }
         url = `/process_treatment/?plot_type=${plotType}&link_path=${link}`;
     }
+
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            // Check if the response contains plot data
-            if (data.plot_data && data.plot_data.image_base64) {
-                // Set the source of the image element to the received base64 image data
-                var generatedPlot = document.getElementById("generatedPlot");
-                generatedPlot.src = "data:image/png;base64," + data.plot_data.image_base64;
-                // Display the plot image container
+            if (data.error_message) {
+                showError(data.error_message);
+            } else if (data.plot_data) {
+                var plotData = data.plot_data;
+                Plotly.newPlot('generatedPlot', JSON.parse(plotData), {});
                 var plotImage = document.getElementById("plotImage");
                 plotImage.style.display = "block";
+                //errorDiv.style.display = 'none';
+                errorMessage.style.display = 'none';
+
+
             } else {
-                alert('Error: Failed to retrieve plot data.');
+                showError('Error: Failed to retrieve plot data.');
             }
         })
         .catch(error => {
             console.error('Error during AJAX request: ', error);
+            showError('Error during AJAX request: ' + error.message);
         });
+    
+}
+
+function showError(message) {
+    // Display the error message in the "error" div
+    var errorDiv = document.getElementById('error');
+    errorDiv.innerHTML = '<p style="color: red; font-size: 16px; font-weight: bold; text-align: center;">' + message + '</p>';
+    errorDiv.style.display = 'block';
+    errorMessage.style.display = 'block';
+
+    // Clear the plot area
+    var plotImage = document.getElementById('plotImage');
+    plotImage.style.display = 'none';
 }
 
 // Function to get the CSRF token from the cookie
