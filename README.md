@@ -9,3 +9,4 @@ Commandes:
 4.python manage.py migrate 
 
 5.python manage.py runserver
+c
