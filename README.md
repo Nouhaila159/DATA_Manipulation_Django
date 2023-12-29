@@ -32,22 +32,29 @@
 ### Tableau de bord
 
 <img src="captures/dashboard.PNG">
+
 ### Gestionnaire de fichiers
 
 Le gestionnaire de fichiers permet de manipuler les données du projet de la manière suivante :
+<img src="captures/file-manager.PNG">
 
 - **Visualisation des données :**
  Visualiser les données à l'aide plotly.
+<img src="captures/data-visualisation.PNG">
+<img src="captures/data-visualisatio-options.png">
+
 
 - **Parcourir les données :** 
 Explorer les données en fonction des lignes ou colonnes spécifiées.
+
 <img src="captures/data-parcourir-1.PNG">
+<img src="captures/data-parcourir-opeartion.png">
 <img src="captures/data-parcourir-operation-result.PNG">
 <img src="captures/data-parcourir-filter.PNG">
 
 - **Visualiser le fichier :**
  Afficher le contenu des fichiers.
-<img src="captures/visualise_file">
+<img src="captures/visualise_file.PNG">
 
 ### Gestionnaire de liens
 
@@ -61,8 +68,7 @@ Le gestionnaire de probabilités permet d'analyser les lois de probabilité en f
 ### Calcul des mesures
 Le calcul des mesures permet d'effectuer des calculs de mesures statistiques sur les données du projet.
 <img src="captures/calcul-mesurement.PNG">
-
-###Les tests
+### Les tests
 <img src="captures/test.PNG">
 
 
