@@ -95,7 +95,7 @@
     
     <form method="post">
        {% csrf_token %}
-       <label for="valeurs">Please enter the list of values (use separators like ',' , '-' , '/' , ':' , '_' , ';'):</label>
+       <label for="valeurs">Please enter the list of values (use separators like ' ' , '-' , '/' , ':' , '_' , ';'):</label>
        <input type="text" id="valeurs" name="valeurs" placeholder="Ex: 10, 20, 30, 40" {% if initial_values %}value="{{ initial_values }}"{% endif %} aria-label="List of values">
        <input type="submit" value="Calculate">
    </form>
